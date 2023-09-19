@@ -1,0 +1,16 @@
+[package]
+name = "bytes"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Lut99" ]
+repository = "https://github.com/Lut99/bytes-rs"
+description = "A package for easily defining header-like structs that can be parsed from bytes with static interpretation."
+
+
+[dependencies]
+bytes-derive = { path = "../bytes-derive", optional = true }
+
+
+[features]
+default = [ "derive" ]
+derive = [ "dep:bytes-derive" ]
