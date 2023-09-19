@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:24:26
 //  Last edited:
-//    19 Sep 2023, 21:58:21
+//    19 Sep 2023, 22:01:19
 //  Auto updated?
 //    Yes
 // 
@@ -29,7 +29,6 @@ macro_rules! num_impl {
         big_endian $be_name:ident ( $be_num:ident );
     } => {
         $(#[$le_attrs])*
-        #[allow(non_camel_case_types)]
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
         pub struct $le_name(pub $le_num);
         impl TryFromBytes for $le_name {
@@ -60,7 +59,6 @@ macro_rules! num_impl {
         }
     
         $(#[$be_attrs])*
-        #[allow(non_camel_case_types)]
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
         pub struct $be_name(pub $be_num);
         impl TryFromBytes for $be_name {
@@ -111,6 +109,7 @@ num_impl! {
     /// assert_eq!(*u16_le::try_from_bytes(&[ 0x2A, 0x2A ]).unwrap(), 10794);
     /// assert!(u16_le::try_from_bytes(&[ 0x2A ]).is_err());
     /// ```
+    #[allow(non_camel_case_types)]
     little_endian u16_le(u16);
 
     /// Defines a 16-bit, unsigned integer that is parsed in big-endian order.
@@ -126,6 +125,7 @@ num_impl! {
     /// assert_eq!(*u16_be::try_from_bytes(&[ 0x2A, 0x2A ]).unwrap(), 10794);
     /// assert!(u16_be::try_from_bytes(&[ 0x2A ]).is_err());
     /// ```
+    #[allow(non_camel_case_types)]
     big_endian u16_be(u16);
 }
 
@@ -145,6 +145,7 @@ num_impl! {
     /// assert!(u32_le::try_from_bytes(&[ 0x2A, 0x2A ]).is_err());
     /// assert!(u32_le::try_from_bytes(&[ 0x2A, 0x2A, 0x2A ]).is_err());
     /// ```
+    #[allow(non_camel_case_types)]
     little_endian u32_le(u32);
 
     /// Defines a 32-bit, unsigned integer that is parsed in big-endian order.
@@ -162,6 +163,7 @@ num_impl! {
     /// assert!(u32_be::try_from_bytes(&[ 0x2A, 0x2A ]).is_err());
     /// assert!(u32_be::try_from_bytes(&[ 0x2A, 0x2A, 0x2A ]).is_err());
     /// ```
+    #[allow(non_camel_case_types)]
     big_endian u32_be(u32);
 }
 
@@ -185,6 +187,7 @@ num_impl! {
     /// assert!(u64_le::try_from_bytes(&[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ]).is_err());
     /// assert!(u64_le::try_from_bytes(&[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ]).is_err());
     /// ```
+    #[allow(non_camel_case_types)]
     little_endian u64_le(u64);
 
     /// Defines a 64-bit, unsigned integer that is parsed in big-endian order.
@@ -206,5 +209,6 @@ num_impl! {
     /// assert!(u64_be::try_from_bytes(&[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ]).is_err());
     /// assert!(u64_be::try_from_bytes(&[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ]).is_err());
     /// ```
+    #[allow(non_camel_case_types)]
     big_endian u64_be(u64);
 }
