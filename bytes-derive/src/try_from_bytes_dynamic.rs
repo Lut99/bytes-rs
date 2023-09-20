@@ -1,21 +1,21 @@
-//  TRY FROM BYTES.rs
+//  TRY FROM BYTES DYNAMIC.rs
 //    by Lut99
 // 
 //  Created:
-//    19 Sep 2023, 21:09:49
+//    20 Sep 2023, 17:38:35
 //  Last edited:
-//    20 Sep 2023, 18:13:18
+//    20 Sep 2023, 18:18:47
 //  Auto updated?
 //    Yes
 // 
 //  Description:
-//!   Defines the derivation procedure for the [`TryFromBytes`].
+//!   Defines the derivation procedure for the [`TryFromBytesDynamic`].
 // 
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use proc_macro_error::{Diagnostic, Level};
-use syn::{Attribute, Data, DataStruct, Generics, Ident, LitStr, Meta, Visibility};
+use syn::{parse_str, Attribute, Data, DataStruct, Expr, ExprLit, Generics, Ident, Lit, LitStr, Meta, Type, Visibility};
 use syn::spanned::Spanned as _;
 use quote::quote;
 
@@ -41,6 +41,32 @@ fn parse_toplevel_attrs(attrs: Vec<Attribute>) -> Result<ToplevelAttributes, Dia
                 res.name = parse_toplevel_input(nv)?;
                 Ok(())
 
+            } else if nv.path.is_ident("dynamic") {
+                let value_span: Span = nv.value.span();
+                if let Expr::Lit(ExprLit { attrs: _, lit: Lit::Str(lit) }) = nv.value {
+                    // Convert it to a type
+                    let ty: Type = match parse_str(&lit.value()) {
+                        Ok(ty)   => ty,
+                        Err(err) => { return Err(Diagnostic::spanned(value_span, Level::Error, "Failed to parse as a Rust type".into()).span_error(value_span, err.to_string())); },
+                    };
+                    res.dynamic_ty = Some(ty);
+
+                    // Alrighty neat
+                    Ok(())
+                } else {
+                    Err(Diagnostic::spanned(value_span, Level::Error, "Expected string literal with Rust type".into()))
+                }
+
+            } else if nv.path.is_ident("dynamic_name") {
+                // Save as string literal
+                let value_span: Span = nv.value.span();
+                if let Expr::Lit(ExprLit { attrs: _, lit: Lit::Str(lit) }) = nv.value {
+                    res.dynamic_name = lit;
+                    Ok(())
+                } else {
+                    Err(Diagnostic::spanned(value_span, Level::Error, "Expected string literal".into()))
+                }
+
             } else {
                 return Err(Diagnostic::spanned(nv.path.span(), Level::Error, format!("Unknown toplevel `#[bytes(...)]` argument{}", if let Some(ident) = nv.path.get_ident() { format!(" '{ident}'") } else { String::new() })));
             },
@@ -60,12 +86,18 @@ fn parse_toplevel_attrs(attrs: Vec<Attribute>) -> Result<ToplevelAttributes, Dia
 /// Defines what we parsed from the toplevel attributes.
 struct ToplevelAttributes {
     /// The name of the input argument.
-    name : LitStr,
+    name         : LitStr,
+    /// The name of the dynamic input.
+    dynamic_name : LitStr,
+    /// The input type of the dynamic call.
+    dynamic_ty   : Option<Type>,
 }
 impl Default for ToplevelAttributes {
     fn default() -> Self {
         Self {
-            name : LitStr::new("bytes", Span::call_site()),
+            name         : LitStr::new("bytes", Span::call_site()),
+            dynamic_name : LitStr::new("dynamic_input", Span::call_site()),
+            dynamic_ty   : None,
         }
     }
 }
@@ -75,7 +107,7 @@ impl Default for ToplevelAttributes {
 
 
 /***** LIBRARY *****/
-/// Takes the parsed struct and implements [`TryFromBytes`] for it.
+/// Takes the parsed struct and implements [`TryFromBytesDynamic`] for it.
 /// 
 /// # Arguments
 /// - `ident`: The identifier of the parsed struct/enum/w/e.
@@ -96,19 +128,24 @@ pub fn derive(ident: Ident, data: Data, attrs: Vec<Attribute>, generics: Generic
 
     // Parse the toplevel attributes first
     let top_attrs: ToplevelAttributes = parse_toplevel_attrs(attrs)?;
+    let dynamic_ty: Type = match top_attrs.dynamic_ty {
+        Some(ty) => ty,
+        None     => { return Err(Diagnostic::spanned(Span::call_site(), Level::Error, "Missing dynamic input type (i.e., `#[bytes(dynamic = \"...\")]`)".into())); },
+    };
 
     // Generate the sub-parts of the implementation
     let input: Ident = Ident::new(&top_attrs.name.value(), top_attrs.name.span());
     let (parse_impl, self_impl, add_impl): (Vec<TokenStream2>, Vec<TokenStream2>, Vec<TokenStream2>) = generate_field_impls(&input, data)?;
 
     // Generate the contents of the impl
+    let dynamic_name: Ident = Ident::new(&top_attrs.dynamic_name.value(), top_attrs.dynamic_name.span());
     let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
     let try_from_bytes_impl: TokenStream2 = quote! {
-        impl #impl_generics ::bytes::TryFromBytesDynamic<()> for #ident #type_generics #where_clause {
+        impl #impl_generics ::bytes::TryFromBytesDynamic<#dynamic_ty> for #ident #type_generics #where_clause {
             type Error = ::bytes::errors::ParseError;
 
             #[automatically_derived]
-            fn try_from_bytes_dynamic(_: (), #input: impl ::core::convert::AsRef<[::core::primitive::u8]>) -> ::std::result::Result<Self, Self::Error> {
+            fn try_from_bytes_dynamic(#dynamic_name: #dynamic_ty, #input: impl ::core::convert::AsRef<[::core::primitive::u8]>) -> ::std::result::Result<Self, Self::Error> {
                 // Prepare parsing everything
                 let #input: &[::core::primitive::u8] = #input.as_ref();
                 let mut cumulative_offset: ::core::primitive::usize = 0;
