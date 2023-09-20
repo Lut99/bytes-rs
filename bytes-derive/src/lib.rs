@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:06:44
 //  Last edited:
-//    19 Sep 2023, 21:09:26
+//    20 Sep 2023, 10:11:27
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,7 @@ mod try_from_bytes;
 /***** LIBRARY *****/
 /// See the auto-generated documentation at `ast_toolkit::procedural::Diagnostic` for more information.
 #[proc_macro_error::proc_macro_error]
-#[proc_macro_derive(TryFromBytes, attributes(try_from_bytes))]
+#[proc_macro_derive(TryFromBytes, attributes(bytes))]
 pub fn derive_try_from_bytes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     use syn::{parse_macro_input, DeriveInput};
 
