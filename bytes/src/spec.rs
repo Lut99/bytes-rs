@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    20 Sep 2023, 17:30:42
+//    21 Sep 2023, 14:33:33
 //  Auto updated?
 //    Yes
 // 
@@ -21,57 +21,34 @@ use crate::order::{BigEndian, Endianness, LittleEndian};
 use crate::string::{Lossiness, Lossy, NonLossy};
 
 
-/***** AUXILLARY *****/
-/// Defines some types that can be used to pass sizes to some parsers.
-pub trait Counting {
-    /// Returns the count embedded in this struct.
-    /// 
-    /// # Returns
-    /// The number of bytes/elements to parse (depends on the parser this is given to).
-    /// 
-    /// # Panics
-    /// This function is allowed to panic if it likes.
-    fn count(&self) -> usize;
-}
-impl Counting for usize {
-    #[inline]
-    fn count(&self) -> usize { *self }
-}
-impl<C: Counting> Counting for (C,) {
-    #[inline]
-    fn count(&self) -> usize { self.0.count() }
-}
-impl<C: Counting, T2> Counting for (C, T2) {
-    #[inline]
-    fn count(&self) -> usize { self.0.count() }
-}
-impl<C: Counting, T2, T3> Counting for (C, T2, T3) {
-    #[inline]
-    fn count(&self) -> usize { self.0.count() }
-}
-impl<C: Counting, T2, T3, T4> Counting for (C, T2, T3, T4) {
-    #[inline]
-    fn count(&self) -> usize { self.0.count() }
-}
-impl<C: Counting, T2, T3, T4, T5> Counting for (C, T2, T3, T4, T5) {
-    #[inline]
-    fn count(&self) -> usize { self.0.count() }
-}
-impl<C: Counting, T2, T3, T4, T5, T6> Counting for (C, T2, T3, T4, T5, T6) {
-    #[inline]
-    fn count(&self) -> usize { self.0.count() }
-}
-impl<C: Counting, T2, T3, T4, T5, T6, T7> Counting for (C, T2, T3, T4, T5, T6, T7) {
-    #[inline]
-    fn count(&self) -> usize { self.0.count() }
-}
-
-
-
-
-
 /***** LIBRARY *****/
 /// Defines that a type can be parsed from a series of bytes.
+/// 
+/// This can be thought of as a non-configurable counterpart to the [`TryFromBytesDynamic`].
+/// In fact, it is implemented as a more convenient alias for a dynamic implementation that takes `()` as input.
+/// 
+/// # Example
+/// ```rust
+/// use bytes::{TryFromBytes as _, TryFromBytesDynamic};
+/// 
+/// struct Example {
+///     num : u16,
+/// }
+/// impl TryFromBytesDynamic<()> for Example {
+///     type Error = bytes::errors::ParseError;
+/// 
+///     #[inline]
+///     fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+///         Ok(Self {
+///             num : u16::try_from_bytes_dynamic(input, bytes)?,
+///         })
+///     }
+/// }
+/// 
+/// assert_eq!(Example::try_from_bytes_dynamic((), &[ 0x00, 0x2A ]).unwrap().num, 10752);
+/// // Equivalent and more convenient
+/// assert_eq!(Example::try_from_bytes(&[ 0x00, 0x2A ]).unwrap().num, 10752);
+/// ```
 pub trait TryFromBytes: TryFromBytesDynamic<()> {
     /// Attempts to parse ourselves from the given bytes.
     /// 
@@ -83,6 +60,15 @@ pub trait TryFromBytes: TryFromBytesDynamic<()> {
     /// 
     /// # Errors
     /// This function may error if we failed to parse the given bytes as ourselves.
+    /// 
+    /// # Examples
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(u8::try_from_bytes(&[ 0x2A ]).unwrap(), 42);
+    /// assert_eq!(i16::try_from_bytes(&[ 0x2A, 0x00 ]).unwrap(), 42);
+    /// assert_eq!(<(u8, u8)>::try_from_bytes(&[ 0x00, 0x2A ]).unwrap(), (0, 42));
+    /// ```
     fn try_from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error>;
 }
 impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
@@ -94,6 +80,37 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 
 
 /// Defines that a type can be parsed from a series of bytes, but requires additional input to do so.
+/// 
+/// This can be thought of as a configurable counterpart to the [`TryFromBytes`].
+/// In fact, the [`TryFromBytes`] is an alias for `TryFromBytesDynamic<()>`.
+/// 
+/// # Example
+/// ```rust
+/// use bytes::TryFromBytesDynamic;
+/// 
+/// struct Example {
+///     num : u16,
+/// }
+/// impl TryFromBytesDynamic<Option<u16>> for Example {
+///     type Error = bytes::errors::ParseError;
+/// 
+///     #[inline]
+///     fn try_from_bytes_dynamic(input: Option<u16>, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+///         if let Some(input) = input {
+///             Ok(Self {
+///                 num : input,
+///             })
+///         } else {
+///             Ok(Self {
+///                 num : u16::try_from_bytes_dynamic((), bytes)?,
+///             })
+///         }
+///     }
+/// }
+/// 
+/// assert_eq!(Example::try_from_bytes_dynamic(Some(42), &[ 0x00, 0x2A ]).unwrap().num, 42);
+/// assert_eq!(Example::try_from_bytes_dynamic(None, &[ 0x00, 0x2A ]).unwrap().num, 10752);
+/// ```
 pub trait TryFromBytesDynamic<I>: Sized {
     /// Determines what errors this function may throw.
     type Error: Error;
@@ -110,6 +127,15 @@ pub trait TryFromBytesDynamic<I>: Sized {
     /// 
     /// # Errors
     /// This function may error if we failed to parse the given bytes as ourselves.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{BigEndian, LittleEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(i16::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0xFF ]).unwrap(), 255);
+    /// assert_eq!(i16::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0xFF ]).unwrap(), -256);
+    /// assert_eq!(String::try_from_bytes_dynamic(13, &[ 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).unwrap(), "Hello, world!");
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error>;
 }
 
@@ -730,22 +756,19 @@ where
         Ok(res.map(|e| e.unwrap()))
     }
 }
-impl<T: ParsedLength + TryFromBytesDynamic<I>, I: Clone + Counting> TryFromBytesDynamic<I> for Vec<T>
+impl<T: ParsedLength + TryFromBytesDynamic<I>, I: Clone> TryFromBytesDynamic<(usize, I)> for Vec<T>
 where
     T::Error: 'static,
 {
     type Error = ParseError;
 
-    fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
-        // Get the count from the input
-        let count: usize = input.count();
-
+    fn try_from_bytes_dynamic(input: (usize, I), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         // Construct the list
         let mut bytes: &[u8] = bytes.as_ref();
-        let mut res: Vec<T> = Vec::with_capacity(count);
-        for i in 0..count {
+        let mut res: Vec<T> = Vec::with_capacity(input.0);
+        for i in 0..input.0 {
             // Parse the element
-            let val: T = match T::try_from_bytes_dynamic(input.clone(), bytes) {
+            let val: T = match T::try_from_bytes_dynamic(input.1.clone(), bytes) {
                 Ok(val)  => val,
                 Err(err) => { return Err(ParseError::Field { name: format!("[{i}]"), err: Box::new(err) }); },
             };
