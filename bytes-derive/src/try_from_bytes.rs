@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:09:49
 //  Last edited:
-//    20 Sep 2023, 18:13:18
+//    21 Sep 2023, 13:14:34
 //  Auto updated?
 //    Yes
 // 
@@ -37,7 +37,7 @@ fn parse_toplevel_attrs(attrs: Vec<Attribute>) -> Result<ToplevelAttributes, Dia
     let mut res: ToplevelAttributes = Default::default();
     iter_bytes_attrs(attrs, |arg: Meta| {
         match arg {
-            Meta::NameValue(nv) => if nv.path.is_ident("input") {
+            Meta::NameValue(nv) => if nv.path.is_ident("input_name") {
                 res.name = parse_toplevel_input(nv)?;
                 Ok(())
 

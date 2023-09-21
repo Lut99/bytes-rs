@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:38:35
 //  Last edited:
-//    20 Sep 2023, 18:18:47
+//    21 Sep 2023, 13:27:33
 //  Auto updated?
 //    Yes
 // 
@@ -15,8 +15,10 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use proc_macro_error::{Diagnostic, Level};
-use syn::{parse_str, Attribute, Data, DataStruct, Expr, ExprLit, Generics, Ident, Lit, LitStr, Meta, Type, Visibility};
+use syn::{parse_str, Attribute, Data, DataStruct, Expr, ExprLit, Generics, Ident, Lit, LitStr, Meta, Type, TypeTuple, Visibility};
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned as _;
+use syn::token::Paren;
 use quote::quote;
 
 use crate::common::{generate_field_impls, iter_bytes_attrs, parse_toplevel_input};
@@ -37,7 +39,7 @@ fn parse_toplevel_attrs(attrs: Vec<Attribute>) -> Result<ToplevelAttributes, Dia
     let mut res: ToplevelAttributes = Default::default();
     iter_bytes_attrs(attrs, |arg: Meta| {
         match arg {
-            Meta::NameValue(nv) => if nv.path.is_ident("input") {
+            Meta::NameValue(nv) => if nv.path.is_ident("input_name") {
                 res.name = parse_toplevel_input(nv)?;
                 Ok(())
 
@@ -49,7 +51,7 @@ fn parse_toplevel_attrs(attrs: Vec<Attribute>) -> Result<ToplevelAttributes, Dia
                         Ok(ty)   => ty,
                         Err(err) => { return Err(Diagnostic::spanned(value_span, Level::Error, "Failed to parse as a Rust type".into()).span_error(value_span, err.to_string())); },
                     };
-                    res.dynamic_ty = Some(ty);
+                    res.dynamic_ty = ty;
 
                     // Alrighty neat
                     Ok(())
@@ -90,14 +92,14 @@ struct ToplevelAttributes {
     /// The name of the dynamic input.
     dynamic_name : LitStr,
     /// The input type of the dynamic call.
-    dynamic_ty   : Option<Type>,
+    dynamic_ty   : Type,
 }
 impl Default for ToplevelAttributes {
     fn default() -> Self {
         Self {
             name         : LitStr::new("bytes", Span::call_site()),
             dynamic_name : LitStr::new("dynamic_input", Span::call_site()),
-            dynamic_ty   : None,
+            dynamic_ty   : Type::Tuple(TypeTuple { paren_token: Paren(Span::call_site()), elems: Punctuated::default() }),
         }
     }
 }
@@ -128,10 +130,6 @@ pub fn derive(ident: Ident, data: Data, attrs: Vec<Attribute>, generics: Generic
 
     // Parse the toplevel attributes first
     let top_attrs: ToplevelAttributes = parse_toplevel_attrs(attrs)?;
-    let dynamic_ty: Type = match top_attrs.dynamic_ty {
-        Some(ty) => ty,
-        None     => { return Err(Diagnostic::spanned(Span::call_site(), Level::Error, "Missing dynamic input type (i.e., `#[bytes(dynamic = \"...\")]`)".into())); },
-    };
 
     // Generate the sub-parts of the implementation
     let input: Ident = Ident::new(&top_attrs.name.value(), top_attrs.name.span());
@@ -139,6 +137,7 @@ pub fn derive(ident: Ident, data: Data, attrs: Vec<Attribute>, generics: Generic
 
     // Generate the contents of the impl
     let dynamic_name: Ident = Ident::new(&top_attrs.dynamic_name.value(), top_attrs.dynamic_name.span());
+    let dynamic_ty: Type = top_attrs.dynamic_ty;
     let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
     let try_from_bytes_impl: TokenStream2 = quote! {
         impl #impl_generics ::bytes::TryFromBytesDynamic<#dynamic_ty> for #ident #type_generics #where_clause {

@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:39:26
 //  Last edited:
-//    20 Sep 2023, 18:18:29
+//    21 Sep 2023, 13:44:20
 //  Auto updated?
 //    Yes
 // 
@@ -301,8 +301,11 @@ pub fn generate_field_impls(input_ident: &Ident, data: DataStruct) -> Result<(Ve
             });
         } else {
             // Generate a `Default::default()` instead
-            self_impl.push(quote!{
-                let #ident: #ty = ::std::default::Default::default(),
+            parse_impl.push(quote!{
+                let #ident: #ty = ::std::default::Default::default();
+            });
+            self_impl.push(quote! {
+                #ident,
             });
         }
     }
