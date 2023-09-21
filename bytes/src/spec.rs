@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    21 Sep 2023, 14:33:33
+//    21 Sep 2023, 14:57:11
 //  Auto updated?
 //    Yes
 // 
@@ -72,6 +72,7 @@ pub trait TryFromBytes: TryFromBytesDynamic<()> {
     fn try_from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error>;
 }
 impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
+    /// Automatic implementation of `TryFromBytes` for [`TryFromBytesDynamic`]'s that take no input (`()`).
     #[inline]
     #[track_caller]
     fn try_from_bytes(bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> { Self::try_from_bytes_dynamic((), bytes) }
@@ -143,6 +144,10 @@ pub trait TryFromBytesDynamic<I>: Sized {
 impl TryFromBytesDynamic<()> for u8 {
     type Error = crate::errors::ParseError;
 
+    /// Parses the byte as-is from the input stream.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is empty.
     #[inline]
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let bytes: &[u8] = bytes.as_ref();
@@ -156,6 +161,10 @@ impl TryFromBytesDynamic<()> for u8 {
 impl TryFromBytesDynamic<()> for i8 {
     type Error = crate::errors::ParseError;
 
+    /// Parses the byte as a signed integer from the input stream.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is empty.
     #[inline]
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let bytes: &[u8] = bytes.as_ref();
@@ -169,6 +178,12 @@ impl TryFromBytesDynamic<()> for i8 {
 impl TryFromBytesDynamic<()> for u16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, unsigned integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -181,6 +196,10 @@ impl TryFromBytesDynamic<()> for u16 {
 impl TryFromBytesDynamic<Endianness> for u16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, unsigned integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -192,6 +211,10 @@ impl TryFromBytesDynamic<Endianness> for u16 {
 impl TryFromBytesDynamic<BigEndian> for u16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, unsigned integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -204,6 +227,10 @@ impl TryFromBytesDynamic<BigEndian> for u16 {
 impl TryFromBytesDynamic<LittleEndian> for u16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, unsigned integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -216,6 +243,12 @@ impl TryFromBytesDynamic<LittleEndian> for u16 {
 impl TryFromBytesDynamic<()> for i16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, signed integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -228,6 +261,10 @@ impl TryFromBytesDynamic<()> for i16 {
 impl TryFromBytesDynamic<Endianness> for i16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, signed integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -239,6 +276,10 @@ impl TryFromBytesDynamic<Endianness> for i16 {
 impl TryFromBytesDynamic<BigEndian> for i16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, signed integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -251,6 +292,10 @@ impl TryFromBytesDynamic<BigEndian> for i16 {
 impl TryFromBytesDynamic<LittleEndian> for i16 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 16-bit, signed integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than two bytes in it.
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -263,6 +308,12 @@ impl TryFromBytesDynamic<LittleEndian> for i16 {
 impl TryFromBytesDynamic<()> for u32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, unsigned integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -275,6 +326,10 @@ impl TryFromBytesDynamic<()> for u32 {
 impl TryFromBytesDynamic<Endianness> for u32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, unsigned integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -286,6 +341,10 @@ impl TryFromBytesDynamic<Endianness> for u32 {
 impl TryFromBytesDynamic<BigEndian> for u32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, unsigned integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -298,6 +357,10 @@ impl TryFromBytesDynamic<BigEndian> for u32 {
 impl TryFromBytesDynamic<LittleEndian> for u32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, unsigned integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -310,6 +373,12 @@ impl TryFromBytesDynamic<LittleEndian> for u32 {
 impl TryFromBytesDynamic<()> for i32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, signed integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -322,6 +391,10 @@ impl TryFromBytesDynamic<()> for i32 {
 impl TryFromBytesDynamic<Endianness> for i32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, signed integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -333,6 +406,10 @@ impl TryFromBytesDynamic<Endianness> for i32 {
 impl TryFromBytesDynamic<BigEndian> for i32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, signed integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -345,6 +422,10 @@ impl TryFromBytesDynamic<BigEndian> for i32 {
 impl TryFromBytesDynamic<LittleEndian> for i32 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 32-bit, signed integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than four bytes in it.
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -357,6 +438,12 @@ impl TryFromBytesDynamic<LittleEndian> for i32 {
 impl TryFromBytesDynamic<()> for u64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, unsigned integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -369,6 +456,10 @@ impl TryFromBytesDynamic<()> for u64 {
 impl TryFromBytesDynamic<Endianness> for u64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, unsigned integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -380,6 +471,10 @@ impl TryFromBytesDynamic<Endianness> for u64 {
 impl TryFromBytesDynamic<BigEndian> for u64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, unsigned integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -392,6 +487,10 @@ impl TryFromBytesDynamic<BigEndian> for u64 {
 impl TryFromBytesDynamic<LittleEndian> for u64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, unsigned integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -404,6 +503,12 @@ impl TryFromBytesDynamic<LittleEndian> for u64 {
 impl TryFromBytesDynamic<()> for i64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, signed integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -416,6 +521,10 @@ impl TryFromBytesDynamic<()> for i64 {
 impl TryFromBytesDynamic<Endianness> for i64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, signed integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -427,6 +536,10 @@ impl TryFromBytesDynamic<Endianness> for i64 {
 impl TryFromBytesDynamic<BigEndian> for i64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, signed integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -439,6 +552,10 @@ impl TryFromBytesDynamic<BigEndian> for i64 {
 impl TryFromBytesDynamic<LittleEndian> for i64 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a 64-bit, signed integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice has less than eight bytes in it.
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -451,6 +568,12 @@ impl TryFromBytesDynamic<LittleEndian> for i64 {
 impl TryFromBytesDynamic<()> for usize {
     type Error = crate::errors::ParseError;
 
+    /// Parses an unsigned integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`usize`].
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -463,6 +586,10 @@ impl TryFromBytesDynamic<()> for usize {
 impl TryFromBytesDynamic<Endianness> for usize {
     type Error = crate::errors::ParseError;
 
+    /// Parses an unsigned integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`usize`].
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -474,6 +601,10 @@ impl TryFromBytesDynamic<Endianness> for usize {
 impl TryFromBytesDynamic<BigEndian> for usize {
     type Error = crate::errors::ParseError;
 
+    /// Parses an unsigned integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`usize`].
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -486,6 +617,10 @@ impl TryFromBytesDynamic<BigEndian> for usize {
 impl TryFromBytesDynamic<LittleEndian> for usize {
     type Error = crate::errors::ParseError;
 
+    /// Parses an unsigned integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`usize`].
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -498,6 +633,12 @@ impl TryFromBytesDynamic<LittleEndian> for usize {
 impl TryFromBytesDynamic<()> for isize {
     type Error = crate::errors::ParseError;
 
+    /// Parses a signed integer from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent an [`isize`].
     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -510,6 +651,10 @@ impl TryFromBytesDynamic<()> for isize {
 impl TryFromBytesDynamic<Endianness> for isize {
     type Error = crate::errors::ParseError;
 
+    /// Parses a signed integer from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`isize`].
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -521,6 +666,10 @@ impl TryFromBytesDynamic<Endianness> for isize {
 impl TryFromBytesDynamic<BigEndian> for isize {
     type Error = crate::errors::ParseError;
 
+    /// Parses a signed integer from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent an [`isize`].
     fn try_from_bytes_dynamic(_input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -533,6 +682,10 @@ impl TryFromBytesDynamic<BigEndian> for isize {
 impl TryFromBytesDynamic<LittleEndian> for isize {
     type Error = crate::errors::ParseError;
 
+    /// Parses an unsigned integer from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent an [`isize`].
     fn try_from_bytes_dynamic(_input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
 
@@ -545,6 +698,12 @@ impl TryFromBytesDynamic<LittleEndian> for isize {
 impl TryFromBytesDynamic<()> for char {
     type Error = crate::errors::ParseError;
 
+    /// Parses a unicode character from the input stream.
+    /// 
+    /// Note that this function uses native endianness. For a static endianness, consider using [`TryFromBytesDynamic<Endianness>`], [`TryFromBytesDynamic<BigEndian>`] or [`TryFromBytesDynamic<LittleEndian>`].
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`char`].
     fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         // Parse the input as a u32 first
         let raw: u32 = u32::try_from_bytes_dynamic(input, bytes)?;
@@ -557,6 +716,10 @@ impl TryFromBytesDynamic<()> for char {
 impl TryFromBytesDynamic<Endianness> for char {
     type Error = crate::errors::ParseError;
 
+    /// Parses a unicode character from the input stream using dynamic endianness.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`char`].
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
@@ -568,6 +731,10 @@ impl TryFromBytesDynamic<Endianness> for char {
 impl TryFromBytesDynamic<BigEndian> for char {
     type Error = crate::errors::ParseError;
 
+    /// Parses a unicode character from the input stream using big-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`char`].
     fn try_from_bytes_dynamic(input: BigEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         // Parse the input as a u32 first
         let raw: u32 = u32::try_from_bytes_dynamic(input, bytes)?;
@@ -580,6 +747,10 @@ impl TryFromBytesDynamic<BigEndian> for char {
 impl TryFromBytesDynamic<LittleEndian> for char {
     type Error = crate::errors::ParseError;
 
+    /// Parses a unicode character from the input stream using little-endian ordering.
+    /// 
+    /// # Errors
+    /// This function may error if the given slice is too small to represent a [`char`].
     fn try_from_bytes_dynamic(input: LittleEndian, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         // Parse the input as a u32 first
         let raw: u32 = u32::try_from_bytes_dynamic(input, bytes)?;
