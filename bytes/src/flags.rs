@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    20 Sep 2023, 17:23:06
+//    21 Sep 2023, 14:03:06
 //  Auto updated?
 //    Yes
 // 
@@ -48,13 +48,13 @@ impl<T: Flags> TryFromBytesDynamic<()> for T {
 
         // Attempt to parse enough bytes
         let n_flags: usize = Self::flag_count();
-        let n_bytes: usize = if n_flags > 0 { 1 + n_flags / 8 } else { 0 };
+        let n_bytes: usize = n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 };
         if bytes.len() < n_bytes { return Err(ParseError::NotEnoughInput { got: bytes.len(), needed: n_bytes }); }
 
         // Scour them for bits
         let mut bits: Vec<bool> = Vec::with_capacity(n_flags);
         for i in 0..n_flags {
-            bits.push(((bytes[if i > 0 { 1 + i / 8 } else { 0 }]) >> (7 - i % 8)) & 0x1 == 1);
+            bits.push(((bytes[i / 8]) >> (7 - i % 8)) & 0x1 == 1);
         }
 
         // OK done

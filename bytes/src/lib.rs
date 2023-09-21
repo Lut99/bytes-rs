@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    21 Sep 2023, 13:49:38
+//    21 Sep 2023, 13:52:42
 //  Auto updated?
 //    Yes
 // 
@@ -24,6 +24,7 @@ pub mod string;
 
 
 // Bring some of that into the crate namespace
+pub use flags::Flags;
 pub use order::{BigEndian, Endianness, LittleEndian};
 pub use spec::{ParsedLength, TryFromBytes, TryFromBytesDynamic};
 pub use string::{Lossiness, Lossy, NonLossy};
