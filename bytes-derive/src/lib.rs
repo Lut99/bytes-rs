@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:06:44
 //  Last edited:
-//    20 Sep 2023, 18:01:28
+//    21 Sep 2023, 12:32:55
 //  Auto updated?
 //    Yes
 // 
@@ -18,7 +18,7 @@ mod try_from_bytes_dynamic;
 
 
 /***** LIBRARY *****/
-/// See the auto-generated documentation at `ast_toolkit::procedural::Diagnostic` for more information.
+/// See the documentation at `bytes::procedural::TryFromBytes` for more information.
 #[proc_macro_error::proc_macro_error]
 #[proc_macro_derive(TryFromBytes, attributes(bytes))]
 pub fn derive_try_from_bytes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -37,7 +37,7 @@ pub fn derive_try_from_bytes(input: proc_macro::TokenStream) -> proc_macro::Toke
 
 
 
-/// See the auto-generated documentation at `ast_toolkit::procedural::Diagnostic` for more information.
+/// See the documentation at `bytes::procedural::TryFromBytesDynamic` for more information.
 #[proc_macro_error::proc_macro_error]
 #[proc_macro_derive(TryFromBytesDynamic, attributes(bytes))]
 pub fn derive_try_from_bytes_dynamic(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
