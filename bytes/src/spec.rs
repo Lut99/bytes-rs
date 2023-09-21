@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    21 Sep 2023, 14:57:11
+//    21 Sep 2023, 18:27:06
 //  Auto updated?
 //    Yes
 // 
@@ -765,6 +765,14 @@ impl TryFromBytesDynamic<LittleEndian> for char {
 impl<I> TryFromBytesDynamic<I> for () {
     type Error = std::convert::Infallible;
 
+    /// A dummy parser that parses nothing.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<()>::try_from_bytes(&[ 0x2A ]).unwrap(), ());
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(_input: I, _bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> { Ok(()) }
 }
@@ -774,6 +782,17 @@ where
 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a particular type wrapped in a tuple.
+    /// 
+    /// # Errors
+    /// This function errors if the child parser errors. If so, the error is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<(u8,)>::try_from_bytes(&[ 0x2A ]).unwrap(), (42,));
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         Ok((
             T::try_from_bytes_dynamic(input, bytes).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
@@ -787,6 +806,21 @@ where
 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<(u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B ]).unwrap(), (42, 43));
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
@@ -803,6 +837,21 @@ where
 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<(u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C ]).unwrap(), (42, 43, 44));
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
@@ -821,6 +870,21 @@ where
 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<(u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D ]).unwrap(), (42, 43, 44, 45));
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
@@ -841,6 +905,21 @@ where
 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<(u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E ]).unwrap(), (42, 43, 44, 45, 46));
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
@@ -863,6 +942,21 @@ where
 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F ]).unwrap(), (42, 43, 44, 45, 46, 47));
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
@@ -887,6 +981,21 @@ where
 {
     type Error = crate::errors::ParseError;
 
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30 ]).unwrap(), (42, 43, 44, 45, 46, 47, 48));
+    /// ```
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
@@ -906,6 +1015,19 @@ where
 {
     type Error = ParseError;
 
+    /// Parses a (constant-length) array of a nested type.
+    /// 
+    /// The items are assumed to be tightly packed, shortly following after another.
+    /// 
+    /// # Errors
+    /// This function may error if any of the elements fails to be parsed. If so, then the error is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert_eq!(<[ u8; 4 ]>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D ]).unwrap(), [ 42, 43, 44, 45 ]);
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         // Parse them all, Pokémon
@@ -933,6 +1055,19 @@ where
 {
     type Error = ParseError;
 
+    /// Parses a dynamic number of elements of a nested type.
+    /// 
+    /// The array is assumed to be tightly-packed.
+    /// 
+    /// # Errors
+    /// This function errors if any of the parsers fail. If so, then the error is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(Vec::<u8>::try_from_bytes_dynamic((4, ()), &[ 0x2A, 0x2B, 0x2C, 0x2D ]).unwrap(), vec![ 42, 43, 44, 45 ]);
+    /// ```
     fn try_from_bytes_dynamic(input: (usize, I), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         // Construct the list
         let mut bytes: &[u8] = bytes.as_ref();
