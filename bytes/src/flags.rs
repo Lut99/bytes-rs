@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    21 Sep 2023, 14:15:26
+//    22 Sep 2023, 11:55:07
 //  Auto updated?
 //    Yes
 // 
@@ -14,7 +14,7 @@
 // 
 
 use crate::errors::ParseError;
-use crate::spec::TryFromBytesDynamic;
+use crate::spec::{ParsedLength, TryFromBytesDynamic};
 
 
 /***** LIBRARY *****/
@@ -101,5 +101,12 @@ impl<T: Flags> TryFromBytesDynamic<()> for T {
 
         // OK done
         Ok(T::from_bits(bits))
+    }
+}
+impl<T: Flags> ParsedLength for T {
+    #[inline]
+    fn parsed_len(&self) -> usize {
+        let n_flags: usize = Self::flag_count();
+        n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 }
     }
 }

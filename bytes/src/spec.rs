@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    22 Sep 2023, 11:10:41
+//    22 Sep 2023, 11:56:46
 //  Auto updated?
 //    Yes
 // 
@@ -1842,14 +1842,4 @@ impl ParsedLength for Cow<'_, str> {
 impl ParsedLength for String {
     #[inline]
     fn parsed_len(&self) -> usize { self.len() }
-}
-
-// Implement for all references
-impl<T: ParsedLength> ParsedLength for &T {
-    #[inline]
-    fn parsed_len(&self) -> usize { (**self).parsed_len() }
-}
-impl<T: ParsedLength> ParsedLength for &mut T {
-    #[inline]
-    fn parsed_len(&self) -> usize { (**self).parsed_len() }
 }

@@ -4,6 +4,15 @@ This file keeps track of notable changes in between versions.
 This project uses [semantic versioning](https://semver.org). As such, we will mark which are breaking changes.
 
 
+## [1.1.0] - TODO
+### Added
+- Types implementing `Flags` now also implement `ParsedLength` properly.
+
+### Removed
+- `impl<T: ParsedLength> ParsedLength for &T` and `impl<T: ParsedLength> ParsedLength for &mut T`
+
+
+
 ## [1.0.0] - 2023-09-22
 Initial release!
 
