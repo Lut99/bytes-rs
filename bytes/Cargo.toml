@@ -1,9 +1,9 @@
 [package]
 name = "bytes"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = [ "Lut99" ]
-repository = "https://github.com/Lut99/bytes-rs"
+repository.workspace = true
 description = "A package for easily defining header-like structs that can be parsed from bytes with static interpretation."
 
 

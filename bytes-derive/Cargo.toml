@@ -1,9 +1,9 @@
 [package]
 name = "bytes-derive"
-version = "0.1.0"
+version.workspace = true
 edition = "2021"
 authors = [ "Lut99" ]
-repository = "https://github.com/Lut99/bytes-rs"
+repository.workspace = true
 description = "Contributes the derive macros for the `bytes`-crate."
 
 

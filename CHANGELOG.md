@@ -7,9 +7,13 @@ This project uses [semantic versioning](https://semver.org). As such, we will ma
 ## [1.1.0] - TODO
 ### Added
 - Types implementing `Flags` now also implement `ParsedLength` properly.
+- Proper docstring to `lib.rs` in `bytes` (i.e., the crate itself).
 
 ### Removed
 - `impl<T: ParsedLength> ParsedLength for &T` and `impl<T: ParsedLength> ParsedLength for &mut T`
+
+### Fixed
+- Version number being incorrect in `Cargo.toml`
 
 
 
