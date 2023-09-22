@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    21 Sep 2023, 18:27:06
+//    22 Sep 2023, 11:10:41
 //  Auto updated?
 //    Yes
 // 
@@ -767,11 +767,37 @@ impl<I> TryFromBytesDynamic<I> for () {
 
     /// A dummy parser that parses nothing.
     /// 
-    /// # Example
+    /// This parser may be used to represent unused areas in a tightly packed struct. See below for an example.
+    /// 
+    /// # Arguments
+    /// - `input`: The input to customize the parsing. Note that this is actually ignored because we're not parsing anything.
+    /// - `bytes`: The byte string to parse from. Note that this is actually ignored because we're not parsing anything.
+    /// 
+    /// # Returns
+    /// A new instance of `()`.
+    /// 
+    /// # Examples
     /// ```rust
     /// use bytes::TryFromBytes as _;
     /// 
     /// assert_eq!(<()>::try_from_bytes(&[ 0x2A ]).unwrap(), ());
+    /// ```
+    /// Example usage in a tightly packed struct:
+    /// ```rust
+    /// use bytes::TryFromBytes;
+    /// 
+    /// #[derive(TryFromBytes)]
+    /// struct PackedWithUnused {
+    ///     /// First part
+    ///     #[bytes]
+    ///     num1   : u16,
+    ///     /// Unused area of 2 bytes
+    ///     #[bytes(length = 2)]
+    ///     unused : (),
+    ///     /// Second part
+    ///     #[bytes]
+    ///     num2   : u16,
+    /// }
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(_input: I, _bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> { Ok(()) }
@@ -783,6 +809,13 @@ where
     type Error = crate::errors::ParseError;
 
     /// Parses a particular type wrapped in a tuple.
+    /// 
+    /// # Arguments
+    /// - `input`: Any input to pass to the child parser.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with one element that is parsed with the nested parser.
     /// 
     /// # Errors
     /// This function errors if the child parser errors. If so, the error is wrapped in a [`ParseError::Field`].
@@ -799,7 +832,7 @@ where
         ))
     }
 }
-impl<T1: ParsedLength + TryFromBytesDynamic<I>, T2: TryFromBytesDynamic<I>, I: Clone> TryFromBytesDynamic<I> for (T1,T2)
+impl<T1: ParsedLength + TryFromBytesDynamic<()>, T2: TryFromBytesDynamic<()>> TryFromBytesDynamic<()> for (T1, T2)
 where
     T1::Error: 'static,
     T2::Error: 'static,
@@ -812,6 +845,13 @@ where
     /// 
     /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
     /// 
+    /// # Arguments
+    /// - `input`: Nothing, since this parser assumes the nested types do not need input either.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
     /// # Errors
     /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
     /// 
@@ -821,15 +861,53 @@ where
     /// 
     /// assert_eq!(<(u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B ]).unwrap(), (42, 43));
     /// ```
-    fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+    fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
-            T1::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T1::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
             T2::try_from_bytes_dynamic(input, bytes).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
         ))
     }
 }
-impl<T1: ParsedLength + TryFromBytesDynamic<I>, T2: ParsedLength + TryFromBytesDynamic<I>, T3: TryFromBytesDynamic<I>, I: Clone> TryFromBytesDynamic<I> for (T1,T2,T3)
+impl<T1: ParsedLength + TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, I1, I2> TryFromBytesDynamic<(I1, I2)> for (T1, T2)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+{
+    type Error = crate::errors::ParseError;
+
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Arguments
+    /// - `input`: A tuple with inputs to pass to each of the nested parsers.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(<(String, String)>::try_from_bytes_dynamic((2, 2), &[ 0x61, 0x62, 0x63, 0x64 ]).unwrap(), ("ab".into(), "cd".into()));
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: (I1, I2), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+        let mut bytes: &[u8] = bytes.as_ref();
+        Ok((
+            T1::try_from_bytes_dynamic(input.0, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input.1, bytes).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+        ))
+    }
+}
+impl<T1: ParsedLength + TryFromBytesDynamic<()>, T2: ParsedLength + TryFromBytesDynamic<()>, T3: TryFromBytesDynamic<()>> TryFromBytesDynamic<()> for (T1, T2, T3)
 where
     T1::Error: 'static,
     T2::Error: 'static,
@@ -843,6 +921,13 @@ where
     /// 
     /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
     /// 
+    /// # Arguments
+    /// - `input`: Nothing, since this parser assumes the nested types do not need input either.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
     /// # Errors
     /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
     /// 
@@ -852,16 +937,56 @@ where
     /// 
     /// assert_eq!(<(u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C ]).unwrap(), (42, 43, 44));
     /// ```
-    fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+    fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
-            T1::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
-            T2::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T1::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
             T3::try_from_bytes_dynamic(input, bytes).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
         ))
     }
 }
-impl<T1: ParsedLength + TryFromBytesDynamic<I>, T2: ParsedLength + TryFromBytesDynamic<I>, T3: ParsedLength + TryFromBytesDynamic<I>, T4: TryFromBytesDynamic<I>, I: Clone> TryFromBytesDynamic<I> for (T1,T2,T3,T4)
+impl<T1: ParsedLength + TryFromBytesDynamic<I1>, T2: ParsedLength + TryFromBytesDynamic<I2>, T3: TryFromBytesDynamic<I3>, I1, I2, I3> TryFromBytesDynamic<(I1, I2, I3)> for (T1, T2, T3)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+    T3::Error: 'static,
+{
+    type Error = crate::errors::ParseError;
+
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Arguments
+    /// - `input`: A tuple with inputs to pass to each of the nested parsers.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(<(String, String, String)>::try_from_bytes_dynamic((2, 2, 2), &[ 0x61, 0x62, 0x63, 0x64, 0x65, 0x66 ]).unwrap(), ("ab".into(), "cd".into(), "ef".into()));
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: (I1, I2, I3), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+        let mut bytes: &[u8] = bytes.as_ref();
+        Ok((
+            T1::try_from_bytes_dynamic(input.0, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input.1, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input.2, bytes).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+        ))
+    }
+}
+impl<T1: ParsedLength + TryFromBytesDynamic<()>, T2: ParsedLength + TryFromBytesDynamic<()>, T3: ParsedLength + TryFromBytesDynamic<()>, T4: TryFromBytesDynamic<()>> TryFromBytesDynamic<()> for (T1, T2, T3, T4)
 where
     T1::Error: 'static,
     T2::Error: 'static,
@@ -876,6 +1001,13 @@ where
     /// 
     /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
     /// 
+    /// # Arguments
+    /// - `input`: Nothing, since this parser assumes the nested types do not need input either.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
     /// # Errors
     /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
     /// 
@@ -885,17 +1017,59 @@ where
     /// 
     /// assert_eq!(<(u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D ]).unwrap(), (42, 43, 44, 45));
     /// ```
-    fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+    fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
-            T1::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
-            T2::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
-            T3::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T1::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
             T4::try_from_bytes_dynamic(input, bytes).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
         ))
     }
 }
-impl<T1: ParsedLength + TryFromBytesDynamic<I>, T2: ParsedLength + TryFromBytesDynamic<I>, T3: ParsedLength + TryFromBytesDynamic<I>, T4: ParsedLength + TryFromBytesDynamic<I>, T5: TryFromBytesDynamic<I>, I: Clone> TryFromBytesDynamic<I> for (T1,T2,T3,T4,T5)
+impl<T1: ParsedLength + TryFromBytesDynamic<I1>, T2: ParsedLength + TryFromBytesDynamic<I2>, T3: ParsedLength + TryFromBytesDynamic<I3>, T4: TryFromBytesDynamic<I4>, I1, I2, I3, I4> TryFromBytesDynamic<(I1, I2, I3, I4)> for (T1, T2, T3, T4)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+    T3::Error: 'static,
+    T4::Error: 'static,
+{
+    type Error = crate::errors::ParseError;
+
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Arguments
+    /// - `input`: A tuple with inputs to pass to each of the nested parsers.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(<(String, String, String, String)>::try_from_bytes_dynamic((2, 2, 2, 2), &[ 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68 ]).unwrap(), ("ab".into(), "cd".into(), "ef".into(), "gh".into()));
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+        let mut bytes: &[u8] = bytes.as_ref();
+        Ok((
+            T1::try_from_bytes_dynamic(input.0, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input.1, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input.2, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T4::try_from_bytes_dynamic(input.3, bytes).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
+        ))
+    }
+}
+impl<T1: ParsedLength + TryFromBytesDynamic<()>, T2: ParsedLength + TryFromBytesDynamic<()>, T3: ParsedLength + TryFromBytesDynamic<()>, T4: ParsedLength + TryFromBytesDynamic<()>, T5: TryFromBytesDynamic<()>> TryFromBytesDynamic<()> for (T1, T2, T3, T4, T5)
 where
     T1::Error: 'static,
     T2::Error: 'static,
@@ -911,6 +1085,13 @@ where
     /// 
     /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
     /// 
+    /// # Arguments
+    /// - `input`: Nothing, since this parser assumes the nested types do not need input either.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
     /// # Errors
     /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
     /// 
@@ -920,18 +1101,62 @@ where
     /// 
     /// assert_eq!(<(u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E ]).unwrap(), (42, 43, 44, 45, 46));
     /// ```
-    fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+    fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
-            T1::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
-            T2::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
-            T3::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
-            T4::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
+            T1::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T4::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
             T5::try_from_bytes_dynamic(input, bytes).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
         ))
     }
 }
-impl<T1: ParsedLength + TryFromBytesDynamic<I>, T2: ParsedLength + TryFromBytesDynamic<I>, T3: ParsedLength + TryFromBytesDynamic<I>, T4: ParsedLength + TryFromBytesDynamic<I>, T5: ParsedLength + TryFromBytesDynamic<I>, T6: TryFromBytesDynamic<I>, I: Clone> TryFromBytesDynamic<I> for (T1,T2,T3,T4,T5,T6)
+impl<T1: ParsedLength + TryFromBytesDynamic<I1>, T2: ParsedLength + TryFromBytesDynamic<I2>, T3: ParsedLength + TryFromBytesDynamic<I3>, T4: ParsedLength + TryFromBytesDynamic<I4>, T5: TryFromBytesDynamic<I5>, I1, I2, I3, I4, I5> TryFromBytesDynamic<(I1, I2, I3, I4, I5)> for (T1, T2, T3, T4, T5)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+    T3::Error: 'static,
+    T4::Error: 'static,
+    T5::Error: 'static,
+{
+    type Error = crate::errors::ParseError;
+
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Arguments
+    /// - `input`: A tuple with inputs to pass to each of the nested parsers.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(<(String, String, String, String, String)>::try_from_bytes_dynamic((2, 2, 2, 2, 2), &[ 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A ]).unwrap(), ("ab".into(), "cd".into(), "ef".into(), "gh".into(), "ij".into()));
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4, I5), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+        let mut bytes: &[u8] = bytes.as_ref();
+        Ok((
+            T1::try_from_bytes_dynamic(input.0, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input.1, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input.2, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T4::try_from_bytes_dynamic(input.3, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
+            T5::try_from_bytes_dynamic(input.4, bytes).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
+        ))
+    }
+}
+impl<T1: ParsedLength + TryFromBytesDynamic<()>, T2: ParsedLength + TryFromBytesDynamic<()>, T3: ParsedLength + TryFromBytesDynamic<()>, T4: ParsedLength + TryFromBytesDynamic<()>, T5: ParsedLength + TryFromBytesDynamic<()>, T6: TryFromBytesDynamic<()>> TryFromBytesDynamic<()> for (T1, T2, T3, T4, T5, T6)
 where
     T1::Error: 'static,
     T2::Error: 'static,
@@ -948,6 +1173,13 @@ where
     /// 
     /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
     /// 
+    /// # Arguments
+    /// - `input`: Nothing, since this parser assumes the nested types do not need input either.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
     /// # Errors
     /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
     /// 
@@ -955,21 +1187,67 @@ where
     /// ```rust
     /// use bytes::TryFromBytes as _;
     /// 
-    /// assert_eq!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F ]).unwrap(), (42, 43, 44, 45, 46, 47));
+    /// assert_eq!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F ]).unwrap(), (42, 43, 44, 45, 46 ,47));
     /// ```
-    fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+    fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
-            T1::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
-            T2::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
-            T3::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
-            T4::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
-            T5::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
+            T1::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T4::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
+            T5::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
             T6::try_from_bytes_dynamic(input, bytes).map_err(|err| ParseError::Field { name: "5".into(), err: Box::new(err) })?,
         ))
     }
 }
-impl<T1: ParsedLength + TryFromBytesDynamic<I>, T2: ParsedLength + TryFromBytesDynamic<I>, T3: ParsedLength + TryFromBytesDynamic<I>, T4: ParsedLength + TryFromBytesDynamic<I>, T5: ParsedLength + TryFromBytesDynamic<I>, T6: ParsedLength + TryFromBytesDynamic<I>, T7: TryFromBytesDynamic<I>, I: Clone> TryFromBytesDynamic<I> for (T1,T2,T3,T4,T5,T6,T7)
+impl<T1: ParsedLength + TryFromBytesDynamic<I1>, T2: ParsedLength + TryFromBytesDynamic<I2>, T3: ParsedLength + TryFromBytesDynamic<I3>, T4: ParsedLength + TryFromBytesDynamic<I4>, T5: ParsedLength + TryFromBytesDynamic<I5>, T6: TryFromBytesDynamic<I6>, I1, I2, I3, I4, I5, I6> TryFromBytesDynamic<(I1, I2, I3, I4, I5, I6)> for (T1, T2, T3, T4, T5, T6)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+    T3::Error: 'static,
+    T4::Error: 'static,
+    T5::Error: 'static,
+    T6::Error: 'static,
+{
+    type Error = crate::errors::ParseError;
+
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Arguments
+    /// - `input`: A tuple with inputs to pass to each of the nested parsers.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(<(String, String, String, String, String, String)>::try_from_bytes_dynamic((2, 2, 2, 2, 2, 2), &[ 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C ]).unwrap(), ("ab".into(), "cd".into(), "ef".into(), "gh".into(), "ij".into(), "kl".into()));
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4, I5, I6), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+        let mut bytes: &[u8] = bytes.as_ref();
+        Ok((
+            T1::try_from_bytes_dynamic(input.0, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input.1, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input.2, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T4::try_from_bytes_dynamic(input.3, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
+            T5::try_from_bytes_dynamic(input.4, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
+            T6::try_from_bytes_dynamic(input.5, bytes).map_err(|err| ParseError::Field { name: "5".into(), err: Box::new(err) })?,
+        ))
+    }
+}
+impl<T1: ParsedLength + TryFromBytesDynamic<()>, T2: ParsedLength + TryFromBytesDynamic<()>, T3: ParsedLength + TryFromBytesDynamic<()>, T4: ParsedLength + TryFromBytesDynamic<()>, T5: ParsedLength + TryFromBytesDynamic<()>, T6: ParsedLength + TryFromBytesDynamic<()>, T7: TryFromBytesDynamic<()>> TryFromBytesDynamic<()> for (T1, T2, T3, T4, T5, T6, T7)
 where
     T1::Error: 'static,
     T2::Error: 'static,
@@ -987,6 +1265,13 @@ where
     /// 
     /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
     /// 
+    /// # Arguments
+    /// - `input`: Nothing, since this parser assumes the nested types do not need input either.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
     /// # Errors
     /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
     /// 
@@ -994,18 +1279,66 @@ where
     /// ```rust
     /// use bytes::TryFromBytes as _;
     /// 
-    /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F, 0x30 ]).unwrap(), (42, 43, 44, 45, 46, 47, 48));
+    /// assert_eq!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes(&[ 0x2A, 0x2B, 0x2C, 0x2D, 0x2E, 0x2F ]).unwrap(), (42, 43, 44, 45, 46 ,47));
     /// ```
-    fn try_from_bytes_dynamic(input: I, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+    fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let mut bytes: &[u8] = bytes.as_ref();
         Ok((
-            T1::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
-            T2::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
-            T3::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
-            T4::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
-            T5::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
-            T6::try_from_bytes_dynamic(input.clone(), bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "5".into(), err: Box::new(err) })?,
+            T1::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T4::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
+            T5::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
+            T6::try_from_bytes_dynamic(input, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "5".into(), err: Box::new(err) })?,
             T7::try_from_bytes_dynamic(input, bytes).map_err(|err| ParseError::Field { name: "6".into(), err: Box::new(err) })?,
+        ))
+    }
+}
+impl<T1: ParsedLength + TryFromBytesDynamic<I1>, T2: ParsedLength + TryFromBytesDynamic<I2>, T3: ParsedLength + TryFromBytesDynamic<I3>, T4: ParsedLength + TryFromBytesDynamic<I4>, T5: ParsedLength + TryFromBytesDynamic<I5>, T6: ParsedLength + TryFromBytesDynamic<I6>, T7: TryFromBytesDynamic<I7>, I1, I2, I3, I4, I5, I6, I7> TryFromBytesDynamic<(I1, I2, I3, I4, I5, I6, I7)> for (T1, T2, T3, T4, T5, T6, T7)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+    T3::Error: 'static,
+    T4::Error: 'static,
+    T5::Error: 'static,
+    T6::Error: 'static,
+    T7::Error: 'static,
+{
+    type Error = crate::errors::ParseError;
+
+    /// Parses a tuple of nested types.
+    /// 
+    /// The tuple is assumed to be tightly packed; i.e., first the first type is parsed, and then immediately after the next is parsed, etc.
+    /// 
+    /// The length of skips are deduced on each non-last type's [`ParsedLength`]-implementation.
+    /// 
+    /// # Arguments
+    /// - `input`: A tuple with inputs to pass to each of the nested parsers.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new tuple with elements, each parsed with the appropriate nested parser.
+    /// 
+    /// # Errors
+    /// This function errors (eagerly) if any of the nested parsers fails. If so, then the errors is wrapped in a [`ParseError::Field`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(<(String, String, String, String, String, String)>::try_from_bytes_dynamic((2, 2, 2, 2, 2, 2), &[ 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C ]).unwrap(), ("ab".into(), "cd".into(), "ef".into(), "gh".into(), "ij".into(), "kl".into()));
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4, I5, I6, I7), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+        let mut bytes: &[u8] = bytes.as_ref();
+        Ok((
+            T1::try_from_bytes_dynamic(input.0, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "0".into(), err: Box::new(err) })?,
+            T2::try_from_bytes_dynamic(input.1, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "1".into(), err: Box::new(err) })?,
+            T3::try_from_bytes_dynamic(input.2, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "2".into(), err: Box::new(err) })?,
+            T4::try_from_bytes_dynamic(input.3, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "3".into(), err: Box::new(err) })?,
+            T5::try_from_bytes_dynamic(input.4, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "4".into(), err: Box::new(err) })?,
+            T6::try_from_bytes_dynamic(input.5, bytes).map(|val| { bytes = &bytes[val.parsed_len()..]; val }).map_err(|err| ParseError::Field { name: "5".into(), err: Box::new(err) })?,
+            T7::try_from_bytes_dynamic(input.6, bytes).map_err(|err| ParseError::Field { name: "6".into(), err: Box::new(err) })?,
         ))
     }
 }
@@ -1018,6 +1351,13 @@ where
     /// Parses a (constant-length) array of a nested type.
     /// 
     /// The items are assumed to be tightly packed, shortly following after another.
+    /// 
+    /// # Arguments
+    /// - `input`: Any input to pass to the child parsers.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new array with elements, each parsed with the nested parser.
     /// 
     /// # Errors
     /// This function may error if any of the elements fails to be parsed. If so, then the error is wrapped in a [`ParseError::Field`].
@@ -1059,6 +1399,13 @@ where
     /// 
     /// The array is assumed to be tightly-packed.
     /// 
+    /// # Arguments
+    /// - `input`: A tuple with first the number of times to apply the parser, and then an additional input for every nested parser.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// A new vector with elements, each parsed with the nested parser.
+    /// 
     /// # Errors
     /// This function errors if any of the parsers fail. If so, then the error is wrapped in a [`ParseError::Field`].
     /// 
@@ -1093,6 +1440,28 @@ where
 impl TryFromBytesDynamic<usize> for Cow<'_, str> {
     type Error = ParseError;
 
+    /// Parses a string as a [`Cow<str>`].
+    /// 
+    /// Note that the value is always returned by ownership, not reference.
+    /// 
+    /// # Arguments
+    /// - `input`: Determines the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`Cow<str>`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes, or if it wasn't valid UTF-8.
+    /// 
+    /// # Example
+    /// ```rust
+    /// # use std::borrow::Cow;
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(3, &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert!(Cow::<str>::try_from_bytes_dynamic(3, &[ 0xFF, 0x6F, 0x6F ]).is_err());
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: usize, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(NonLossy(input), bytes)
@@ -1101,17 +1470,65 @@ impl TryFromBytesDynamic<usize> for Cow<'_, str> {
 impl TryFromBytesDynamic<Lossiness> for Cow<'_, str> {
     type Error = ParseError;
 
+    /// Parses a string as a [`Cow<str>`].
+    /// 
+    /// Note that the value is always returned by ownership, not reference.
+    /// 
+    /// # Arguments
+    /// - `input`: Determines if we're parsing lossy or lossless _and_ the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`Cow<str>`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes, or if it we were parsing lossless and the input wasn't valid UTF-8.
+    /// 
+    /// # Example
+    /// ```rust
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(Lossiness::Lossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(Lossiness::NonLossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(Lossiness::Lossy(3), &[ 0xFF, 0x6F, 0x6F ]).unwrap(), "�oo");
+    /// assert!(Cow::<str>::try_from_bytes_dynamic(Lossiness::NonLossy(3), &[ 0xFF, 0x6F, 0x6F ]).is_err());
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossiness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
-            Lossiness::Lossy(l)    => Self::try_from_bytes_dynamic(l, bytes),
-            Lossiness::NonLossy(n) => Self::try_from_bytes_dynamic(n, bytes),
+            Lossiness::Lossy(l)    => Self::try_from_bytes_dynamic(Lossy(l), bytes),
+            Lossiness::NonLossy(n) => Self::try_from_bytes_dynamic(NonLossy(n), bytes),
         }        
     }
 }
 impl TryFromBytesDynamic<Lossy> for Cow<'_, str> {
     type Error = ParseError;
 
+    /// Parses a string as a [`Cow<str>`].
+    /// 
+    /// Note that this function parses lossy, i.e., non-UTF-8 characters are replaced by a special 'unknown' character (`�`).
+    /// 
+    /// Also note that the value is always returned by ownership, not reference.
+    /// 
+    /// # Arguments
+    /// - `input`: Determines that we're parsing lossy _and_ the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`Cow<str>`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes.
+    /// 
+    /// # Example
+    /// ```rust
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(Lossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(Lossy(3), &[ 0xFF, 0x6F, 0x6F ]).unwrap(), "�oo");
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossy, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let bytes: &[u8] = bytes.as_ref();
@@ -1127,6 +1544,30 @@ impl TryFromBytesDynamic<Lossy> for Cow<'_, str> {
 impl TryFromBytesDynamic<NonLossy> for Cow<'_, str> {
     type Error = ParseError;
 
+    /// Parses a string as a [`Cow<str>`].
+    /// 
+    /// Note that this function parses lossless, i.e., the parsing crashes when it finds non-UTF-8 characters.
+    /// 
+    /// Also note that the value is always returned by ownership, not reference.
+    /// 
+    /// # Arguments
+    /// - `input`: Determines that we're parsing lossless _and_ the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`Cow<str>`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes, or if the input wasn't valid UTF-8.
+    /// 
+    /// # Example
+    /// ```rust
+    /// # use std::borrow::Cow;
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(NonLossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert!(Cow::<str>::try_from_bytes_dynamic(NonLossy(3), &[ 0xFF, 0x6F, 0x6F ]).is_err());
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: NonLossy, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let bytes: &[u8] = bytes.as_ref();
@@ -1145,6 +1586,25 @@ impl TryFromBytesDynamic<NonLossy> for Cow<'_, str> {
 impl TryFromBytesDynamic<usize> for String {
     type Error = ParseError;
 
+    /// Parses a string as a [`String`].
+    /// 
+    /// # Arguments
+    /// - `input`: Determines the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`String`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes, or if it wasn't valid UTF-8.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(3, &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert!(String::try_from_bytes_dynamic(3, &[ 0xFF, 0x6F, 0x6F ]).is_err());
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: usize, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(NonLossy(input), bytes)
@@ -1153,17 +1613,59 @@ impl TryFromBytesDynamic<usize> for String {
 impl TryFromBytesDynamic<Lossiness> for String {
     type Error = ParseError;
 
+    /// Parses a string as a [`String`].
+    /// 
+    /// # Arguments
+    /// - `input`: Determines if we're parsing lossy or lossless _and_ the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`String`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes, or if it we were parsing lossless and the input wasn't valid UTF-8.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(Lossiness::Lossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert_eq!(String::try_from_bytes_dynamic(Lossiness::NonLossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert_eq!(String::try_from_bytes_dynamic(Lossiness::Lossy(3), &[ 0xFF, 0x6F, 0x6F ]).unwrap(), "�oo");
+    /// assert!(String::try_from_bytes_dynamic(Lossiness::NonLossy(3), &[ 0xFF, 0x6F, 0x6F ]).is_err());
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossiness, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         match input {
-            Lossiness::Lossy(l)    => Self::try_from_bytes_dynamic(l, bytes),
-            Lossiness::NonLossy(n) => Self::try_from_bytes_dynamic(n, bytes),
+            Lossiness::Lossy(l)    => Self::try_from_bytes_dynamic(Lossy(l), bytes),
+            Lossiness::NonLossy(n) => Self::try_from_bytes_dynamic(NonLossy(n), bytes),
         }        
     }
 }
 impl TryFromBytesDynamic<Lossy> for String {
     type Error = ParseError;
 
+    /// Parses a string as a [`String`].
+    /// 
+    /// Note that this function parses lossy, i.e., non-UTF-8 characters are replaced by a special 'unknown' character (`�`).
+    /// 
+    /// # Arguments
+    /// - `input`: Determines that we're parsing lossy _and_ the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`String`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(Lossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert_eq!(String::try_from_bytes_dynamic(Lossy(3), &[ 0xFF, 0x6F, 0x6F ]).unwrap(), "�oo");
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossy, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let bytes: &[u8] = bytes.as_ref();
@@ -1179,6 +1681,27 @@ impl TryFromBytesDynamic<Lossy> for String {
 impl TryFromBytesDynamic<NonLossy> for String {
     type Error = ParseError;
 
+    /// Parses a string as a [`String`].
+    /// 
+    /// Note that this function parses lossless, i.e., the parsing crashes when it finds non-UTF-8 characters.
+    /// 
+    /// # Arguments
+    /// - `input`: Determines that we're parsing lossless _and_ the length of the input to parse. Note that this length is in _bytes_, not in characters.
+    /// - `bytes`: The byte string to parse from.
+    /// 
+    /// # Returns
+    /// The parsed string as a [`String`].
+    /// 
+    /// # Errors
+    /// This function may error if the input was not at least `input` bytes, or if the input wasn't valid UTF-8.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(NonLossy(3), &[ 0x66, 0x6F, 0x6F ]).unwrap(), "foo");
+    /// assert!(String::try_from_bytes_dynamic(NonLossy(3), &[ 0xFF, 0x6F, 0x6F ]).is_err());
+    /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: NonLossy, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
         let bytes: &[u8] = bytes.as_ref();

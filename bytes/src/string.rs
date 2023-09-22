@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 16:58:59
 //  Last edited:
-//    21 Sep 2023, 14:45:12
+//    22 Sep 2023, 11:06:24
 //  Auto updated?
 //    Yes
 // 
@@ -32,17 +32,17 @@
 /// }
 /// 
 /// if some_condition() {
-///     assert_eq!(Text::try_from_bytes_dynamic(Lossiness::Lossy(Lossy(13)), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).unwrap().txt, "H�llo, world!");
+///     assert_eq!(Text::try_from_bytes_dynamic(Lossiness::Lossy(13), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).unwrap().txt, "H�llo, world!");
 /// } else {
-///     assert!(Text::try_from_bytes_dynamic(Lossiness::NonLossy(NonLossy(13)), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).is_err());
+///     assert!(Text::try_from_bytes_dynamic(Lossiness::NonLossy(13), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).is_err());
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Lossiness {
     /// It's lossy
-    Lossy(Lossy),
+    Lossy(usize),
     /// It's non-lossy
-    NonLossy(NonLossy),
+    NonLossy(usize),
 }
 
 /// Defines that a string can be parsed lossy (i.e., represent non-UTF-8 characters still) and of a certain length.
