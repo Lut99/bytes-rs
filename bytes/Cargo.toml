@@ -8,6 +8,7 @@ description = "A package for easily defining header-like structs that can be par
 
 
 [dependencies]
+num-traits = "0.2"
 bytes-derive = { path = "../bytes-derive", optional = true }
 
 

@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    22 Sep 2023, 11:55:07
+//    27 Sep 2023, 18:15:55
 //  Auto updated?
 //    Yes
 // 
@@ -82,31 +82,31 @@ pub trait Flags {
     /// For an example implementation, see the example given for the [`Flags`]-trait as a whole.
     fn flag_count() -> usize;
 }
-impl<T: Flags> TryFromBytesDynamic<()> for T {
-    type Error = crate::errors::ParseError;
+// impl<T: Flags> TryFromBytesDynamic<()> for T {
+//     type Error = crate::errors::ParseError;
 
-    fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
-        let bytes: &[u8] = bytes.as_ref();
+//     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+//         let bytes: &[u8] = bytes.as_ref();
 
-        // Attempt to parse enough bytes
-        let n_flags: usize = Self::flag_count();
-        let n_bytes: usize = n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 };
-        if bytes.len() < n_bytes { return Err(ParseError::NotEnoughInput { got: bytes.len(), needed: n_bytes }); }
+//         // Attempt to parse enough bytes
+//         let n_flags: usize = Self::flag_count();
+//         let n_bytes: usize = n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 };
+//         if bytes.len() < n_bytes { return Err(ParseError::NotEnoughInput { got: bytes.len(), needed: n_bytes }); }
 
-        // Scour them for bits
-        let mut bits: Vec<bool> = Vec::with_capacity(n_flags);
-        for i in 0..n_flags {
-            bits.push(((bytes[i / 8]) >> (7 - i % 8)) & 0x1 == 1);
-        }
+//         // Scour them for bits
+//         let mut bits: Vec<bool> = Vec::with_capacity(n_flags);
+//         for i in 0..n_flags {
+//             bits.push(((bytes[i / 8]) >> (7 - i % 8)) & 0x1 == 1);
+//         }
 
-        // OK done
-        Ok(T::from_bits(bits))
-    }
-}
-impl<T: Flags> ParsedLength for T {
-    #[inline]
-    fn parsed_len(&self) -> usize {
-        let n_flags: usize = Self::flag_count();
-        n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 }
-    }
-}
+//         // OK done
+//         Ok(T::from_bits(bits))
+//     }
+// }
+// impl<T: Flags> ParsedLength for T {
+//     #[inline]
+//     fn parsed_len(&self) -> usize {
+//         let n_flags: usize = Self::flag_count();
+//         n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 }
+//     }
+// }

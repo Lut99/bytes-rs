@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    22 Sep 2023, 11:56:46
+//    27 Sep 2023, 18:19:11
 //  Auto updated?
 //    Yes
 // 
@@ -14,11 +14,20 @@
 
 use std::borrow::Cow;
 use std::error::Error;
+use std::io::{Read, Write};
 use std::mem::size_of;
 
-use crate::errors::ParseError;
+use crate::errors::{ParseError, SerializeError};
 use crate::order::{BigEndian, Endianness, LittleEndian};
 use crate::string::{Lossiness, Lossy, NonLossy};
+
+
+/***** HELPERS *****/
+trait PrimitiveToBytes: num_traits::ToBytes {}
+impl PrimitiveToBytes for u8 {}
+
+
+
 
 
 /***** LIBRARY *****/
@@ -26,6 +35,8 @@ use crate::string::{Lossiness, Lossy, NonLossy};
 /// 
 /// This can be thought of as a non-configurable counterpart to the [`TryFromBytesDynamic`].
 /// In fact, it is implemented as a more convenient alias for a dynamic implementation that takes `()` as input.
+/// 
+/// Typically, you can automatically derive this trait using the [`TryFromBytes`](crate::procedural::TryFromBytes)-macro.
 /// 
 /// # Example
 /// ```rust
@@ -85,6 +96,8 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 /// This can be thought of as a configurable counterpart to the [`TryFromBytes`].
 /// In fact, the [`TryFromBytes`] is an alias for `TryFromBytesDynamic<()>`.
 /// 
+/// Typically, you can automatically derive this trait using the [`TryFromBytesDynamic`](crate::procedural::TryFromBytesDynamic)-macro.
+/// 
 /// # Example
 /// ```rust
 /// use bytes::TryFromBytesDynamic;
@@ -113,7 +126,7 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 /// assert_eq!(Example::try_from_bytes_dynamic(None, &[ 0x00, 0x2A ]).unwrap().num, 10752);
 /// ```
 pub trait TryFromBytesDynamic<I>: Sized {
-    /// Determines what errors this function may throw.
+    /// Determines what errors this trait's functions may throw.
     type Error: Error;
 
 
@@ -1720,7 +1733,109 @@ impl TryFromBytesDynamic<NonLossy> for String {
 
 
 
+/// Allows a type to be serialized to bytes, using some additional input for configuration.
+/// 
+/// This can be automatically derived using the [`ToBytesDynamic`](crate::procedural::ToBytesDynamic)-macro.
+/// 
+/// # Example
+/// ```rust
+/// todo!();
+/// ```
+pub trait ToBytesDynamic<I> {
+    /// The type of error that may occur when serializing.
+    type Error: Error;
+
+
+    /// Attempts to serialize ourselves to a stream of bytes using dynamic input for configuration.
+    /// 
+    /// # Arguments
+    /// - `input`: The additional input needed to make sense of this, like some length.
+    /// - `writer`: The [output stream](std::io::Write) to serialize to.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to serialize the given bytes.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    fn to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error>;
+}
+
+// Implement it for primitives
+impl<T: PrimitiveToBytes> ToBytesDynamic<()> for T {
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+        // Simply call the trait thingy
+        match writer.write_all(self.to_ne_bytes().as_ref()) {
+            Ok(_)    => Ok(()),
+            Err(err) => Err(SerializeError::Writer { err }),
+        }
+    }
+}
+impl<T: PrimitiveToBytes> ToBytesDynamic<Endianness> for T {
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, input: Endianness, writer: impl Write) -> Result<(), Self::Error> {
+        // Delegate to the hardcoded implementations
+        match input {
+            Endianness::Big    => self.to_bytes_dynamic(BigEndian, writer),
+            Endianness::Little => self.to_bytes_dynamic(LittleEndian, writer),
+        }
+    }
+}
+impl<T: PrimitiveToBytes> ToBytesDynamic<BigEndian> for T {
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, _input: BigEndian, mut writer: impl Write) -> Result<(), Self::Error> {
+        // Simply call the trait thingy
+        match writer.write_all(self.to_be_bytes().as_ref()) {
+            Ok(_)    => Ok(()),
+            Err(err) => Err(SerializeError::Writer { err }),
+        }
+    }
+}
+impl<T: PrimitiveToBytes> ToBytesDynamic<LittleEndian> for T {
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, _input: LittleEndian, mut writer: impl Write) -> Result<(), Self::Error> {
+        // Simply call the trait thingy
+        match writer.write_all(self.to_le_bytes().as_ref()) {
+            Ok(_)    => Ok(()),
+            Err(err) => Err(SerializeError::Writer { err }),
+        }
+    }
+}
+
+// Implement it for tightly-packed containers
+impl ToBytesDynamic<()> for () {
+    type Error = std::convert::Infallible;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, _input: (), writer: impl Write) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+
+
 /// States that a type has a parsed length.
+/// 
+/// This is used by various provided and derived implementations of [`TryFromBytesDynamic`] and [`ToBytes`] to automatically discover offsets.
+/// 
+/// # Example
+/// ```rust
+/// use bytes::ParsedLength as _;
+/// 
+/// assert_eq!(42u32.parsed_length(), 4);
+/// assert_eq!(42u64.parsed_length(), 8);
+/// assert_eq!("Hello, world!".parsed_length(), 13);
+/// ```
 pub trait ParsedLength {
     /// Returns the number of bytes parsed in this type.
     /// 

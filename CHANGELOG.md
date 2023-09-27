@@ -4,13 +4,19 @@ This file keeps track of notable changes in between versions.
 This project uses [semantic versioning](https://semver.org). As such, we will mark which are breaking changes.
 
 
-## [1.1.0] - TODO
+## [2.0.0] - TODO
 ### Added
 - Types implementing `Flags` now also implement `ParsedLength` properly.
 - Proper docstring to `lib.rs` in `bytes` (i.e., the crate itself).
+- Proper docstring to `ParsedLength`.
+- Ability to serialize to a stream of bytes too via the `ToBytes`-trait.
+
+### Changed
+- `TryFromBytes` and `TryFromBytesDynamic` now work using generalized input types with the `std::io::Read`-trait.
+- Simplified library implementations using the `num_traits`.
 
 ### Removed
-- `impl<T: ParsedLength> ParsedLength for &T` and `impl<T: ParsedLength> ParsedLength for &mut T`
+- `impl<T: ParsedLength> ParsedLength for &T` and `impl<T: ParsedLength> ParsedLength for &mut T` \[**breaking**\]
 
 ### Fixed
 - Version number being incorrect in `Cargo.toml`

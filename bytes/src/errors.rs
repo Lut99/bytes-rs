@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 13:46:03
 //  Last edited:
-//    21 Sep 2023, 14:10:01
+//    27 Sep 2023, 18:11:46
 //  Auto updated?
 //    Yes
 // 
@@ -92,6 +92,34 @@ impl Error for ParseError {
 
             NonUtf8Char { .. }    => None,
             NonUtf8String { err } => Some(err),
+        }
+    }
+}
+
+
+
+/// Defines errors that may occur when using library serializers.
+/// 
+/// Note that this struct is designed to report nested errors only when [`source()`](Error::source()) is called.
+/// As such, consider using a library for reporting these easily (e.g., <https://github.com/Lut99/error-trace-rs>).
+#[derive(Debug)]
+pub enum SerializeError {
+    /// Couldn't write to the given writer.
+    Writer { err: std::io::Error },
+}
+impl Display for SerializeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+        use SerializeError::*;
+        match self {
+            Writer { .. } => write!(f, "Failed to write to given writer"),
+        }
+    }
+}
+impl Error for SerializeError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use SerializeError::*;
+        match self {
+            Writer { err } => Some(err),
         }
     }
 }
