@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 13:46:03
 //  Last edited:
-//    28 Sep 2023, 11:46:58
+//    28 Sep 2023, 22:52:26
 //  Auto updated?
 //    Yes
 // 
@@ -23,6 +23,14 @@ use std::fmt::{Display, Formatter, Result as FResult};
 /// As such, consider using a library for reporting these easily (e.g., <https://github.com/Lut99/error-trace-rs>).
 #[derive(Debug)]
 pub enum ParseError {
+    /// Couldn't read from the given reader.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    Read { err: std::io::Error },
+
     /// A sub-parser of a field failed.
     /// 
     /// # Example
@@ -75,6 +83,7 @@ impl Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use ParseError::*;
         match self {
+            Read { .. }                    => write!(f, "Failed to read from given reader"),
             Field { name, .. }             => write!(f, "Failed to parse field '{name}'"),
             NotEnoughInput { got, needed } => write!(f, "Not enough input (got {got} bytes, needed {needed} bytes)"),
 
@@ -87,6 +96,7 @@ impl Error for ParseError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ParseError::*;
         match self {
+            Read { err }          => Some(err),
             Field { err, .. }     => Some(&**err),
             NotEnoughInput { .. } => None,
 
@@ -105,7 +115,12 @@ impl Error for ParseError {
 #[derive(Debug)]
 pub enum SerializeError {
     /// Couldn't write to the given writer.
-    Writer { err: std::io::Error },
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    Write { err: std::io::Error },
     /// A sub-serializer of a field failed.
     /// 
     /// # Example
@@ -127,7 +142,7 @@ impl Display for SerializeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use SerializeError::*;
         match self {
-            Writer { .. }      => write!(f, "Failed to write to given writer"),
+            Write { .. }       => write!(f, "Failed to write to given writer"),
             Field { name, .. } => write!(f, "Failed to serialize field '{name}'"),
         }
     }
@@ -136,7 +151,7 @@ impl Error for SerializeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use SerializeError::*;
         match self {
-            Writer { err }    => Some(err),
+            Write { err }     => Some(err),
             Field { err, .. } => Some(&**err),
         }
     }
