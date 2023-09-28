@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 13:46:03
 //  Last edited:
-//    27 Sep 2023, 18:11:46
+//    28 Sep 2023, 11:46:58
 //  Auto updated?
 //    Yes
 // 
@@ -106,12 +106,29 @@ impl Error for ParseError {
 pub enum SerializeError {
     /// Couldn't write to the given writer.
     Writer { err: std::io::Error },
+    /// A sub-serializer of a field failed.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::TryFromBytes;
+    /// use bytes::errors::ParseError;
+    /// 
+    /// #[derive(ToBytes)]
+    /// struct Example {
+    ///     #[bytes]
+    ///     field_1 : u32
+    /// }
+    /// 
+    /// assert!(matches!(Example::to_bytes(&mut []), Err(ParseError::Field{ .. })));
+    /// ```
+    Field { name: String, err: Box<dyn Error> },
 }
 impl Display for SerializeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use SerializeError::*;
         match self {
-            Writer { .. } => write!(f, "Failed to write to given writer"),
+            Writer { .. }      => write!(f, "Failed to write to given writer"),
+            Field { name, .. } => write!(f, "Failed to serialize field '{name}'"),
         }
     }
 }
@@ -119,7 +136,8 @@ impl Error for SerializeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use SerializeError::*;
         match self {
-            Writer { err } => Some(err),
+            Writer { err }    => Some(err),
+            Field { err, .. } => Some(&**err),
         }
     }
 }

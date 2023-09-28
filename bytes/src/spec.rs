@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    27 Sep 2023, 18:19:11
+//    28 Sep 2023, 11:53:47
 //  Auto updated?
 //    Yes
 // 
@@ -23,8 +23,22 @@ use crate::string::{Lossiness, Lossy, NonLossy};
 
 
 /***** HELPERS *****/
+/// Helper trait for selecting which types we mean when we implement for primitives.
 trait PrimitiveToBytes: num_traits::ToBytes {}
 impl PrimitiveToBytes for u8 {}
+impl PrimitiveToBytes for i8 {}
+impl PrimitiveToBytes for u16 {}
+impl PrimitiveToBytes for i16 {}
+impl PrimitiveToBytes for u32 {}
+impl PrimitiveToBytes for i32 {}
+impl PrimitiveToBytes for u64 {}
+impl PrimitiveToBytes for i64 {}
+impl PrimitiveToBytes for u128 {}
+impl PrimitiveToBytes for i128 {}
+impl PrimitiveToBytes for usize {}
+impl PrimitiveToBytes for isize {}
+impl PrimitiveToBytes for f32 {}
+impl PrimitiveToBytes for f64 {}
 
 
 
@@ -1817,7 +1831,90 @@ impl ToBytesDynamic<()> for () {
     type Error = std::convert::Infallible;
 
     #[inline]
-    fn to_bytes_dynamic(&self, _input: (), writer: impl Write) -> Result<(), Self::Error> {
+    fn to_bytes_dynamic(&self, _input: (), _writer: impl Write) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+impl<T: ToBytesDynamic<I>, I> ToBytesDynamic<I> for (T,)
+where
+    T::Error: 'static,
+{
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error> {
+        match self.0.to_bytes_dynamic(input, writer) {
+            Ok(_)    => Ok(()),
+            Err(err) => Err(SerializeError::Field { name: "0".into(), err: Box::new(err) }),
+        }
+    }
+}
+impl<T1: ToBytesDynamic<I1>, T2: ToBytesDynamic<I2>, I1, I2> ToBytesDynamic<(I1, I2)> for (T1, T2)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+{
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, input: (I1, I2), mut writer: impl Write) -> Result<(), Self::Error> {
+        // Simply serialize the fields one after another
+        if let Err(err) = self.0.to_bytes_dynamic(input.0, &mut writer) {
+            return Err(SerializeError::Field { name: "0".into(), err: Box::new(err) });
+        }
+        if let Err(err) = self.1.to_bytes_dynamic(input.1, writer) {
+            return Err(SerializeError::Field { name: "1".into(), err: Box::new(err) });
+        }
+        Ok(())
+    }
+}
+impl<T1: ToBytesDynamic<I1>, T2: ToBytesDynamic<I2>, T3: ToBytesDynamic<I3>, I1, I2, I3> ToBytesDynamic<(I1, I2, I3)> for (T1, T2, T3)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+    T3::Error: 'static,
+{
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, input: (I1, I2, I3), mut writer: impl Write) -> Result<(), Self::Error> {
+        // Simply serialize the fields one after another
+        if let Err(err) = self.0.to_bytes_dynamic(input.0, &mut writer) {
+            return Err(SerializeError::Field { name: "0".into(), err: Box::new(err) });
+        }
+        if let Err(err) = self.1.to_bytes_dynamic(input.1, &mut writer) {
+            return Err(SerializeError::Field { name: "1".into(), err: Box::new(err) });
+        }
+        if let Err(err) = self.2.to_bytes_dynamic(input.2, writer) {
+            return Err(SerializeError::Field { name: "2".into(), err: Box::new(err) });
+        }
+        Ok(())
+    }
+}
+impl<T1: ToBytesDynamic<I1>, T2: ToBytesDynamic<I2>, T3: ToBytesDynamic<I3>, T4: ToBytesDynamic<I4>, I1, I2, I3, I4> ToBytesDynamic<(I1, I2, I3, I4)> for (T1, T2, T3, T4)
+where
+    T1::Error: 'static,
+    T2::Error: 'static,
+    T3::Error: 'static,
+    T4::Error: 'static,
+{
+    type Error = crate::errors::SerializeError;
+
+    #[inline]
+    fn to_bytes_dynamic(&self, input: (I1, I2, I3, I4), mut writer: impl Write) -> Result<(), Self::Error> {
+        // Simply serialize the fields one after another
+        if let Err(err) = self.0.to_bytes_dynamic(input.0, &mut writer) {
+            return Err(SerializeError::Field { name: "0".into(), err: Box::new(err) });
+        }
+        if let Err(err) = self.1.to_bytes_dynamic(input.1, &mut writer) {
+            return Err(SerializeError::Field { name: "1".into(), err: Box::new(err) });
+        }
+        if let Err(err) = self.2.to_bytes_dynamic(input.2, &mut writer) {
+            return Err(SerializeError::Field { name: "2".into(), err: Box::new(err) });
+        }
+        if let Err(err) = self.3.to_bytes_dynamic(input.3, writer) {
+            return Err(SerializeError::Field { name: "3".into(), err: Box::new(err) });
+        }
         Ok(())
     }
 }
