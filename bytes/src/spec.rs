@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    28 Sep 2023, 23:17:38
+//    29 Sep 2023, 17:38:48
 //  Auto updated?
 //    Yes
 // 
@@ -248,15 +248,40 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     }
 }
 
-// // Implement it for tightly-packed containers
-// impl TryToBytesDynamic<()> for () {
-//     type Error = std::convert::Infallible;
+// Implement it for tightly-packed containers
+impl TryFromBytesDynamic<()> for () {
+    type Error = std::convert::Infallible;
 
-//     #[inline]
-//     fn try_to_bytes_dynamic(&self, _input: (), _writer: impl Write) -> Result<(), Self::Error> {
-//         Ok(())
-//     }
-// }
+    #[inline]
+    fn try_from_bytes_dynamic(_input: (), _reader: impl Read) -> Result<Self, Self::Error> {
+        Ok(())
+    }
+}
+impl TryFromBytesDynamic<usize> for () {
+    type Error = crate::errors::ParseError;
+
+    /// Simply moves the reader forward by the given number of bytes but does not parse anything.
+    /// 
+    /// This can be used to represent reserved or ignored areas in a header.
+    /// 
+    /// # Arguments
+    /// - `input`: The number of bytes to skip.
+    /// - `reader`: The [`Read`]er to skip bytes in.
+    /// 
+    /// # Returns
+    /// Nothing, since we didn't parse anything.
+    /// 
+    /// # Errors
+    /// This function may error if the given reader failed to skip.
+    #[inline]
+    fn try_from_bytes_dynamic(input: usize, mut reader: impl Read) -> Result<Self, Self::Error> {
+        // Attempt to parse & discard
+        match reader.read_exact(&mut vec![ 0; input ]) {
+            Ok(_)    => Ok(()),
+            Err(err) => Err(ParseError::Read { err }),
+        }
+    }
+}
 // impl<T: TryToBytesDynamic<I>, I> TryToBytesDynamic<I> for (T,)
 // where
 //     T::Error: 'static,
@@ -2249,6 +2274,27 @@ impl TryToBytesDynamic<()> for () {
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: (), _writer: impl Write) -> Result<(), Self::Error> {
         Ok(())
+    }
+}
+impl TryToBytesDynamic<usize> for () {
+    type Error = crate::errors::SerializeError;
+
+    /// This functions writes the given number of zeroes to the given writer.
+    /// 
+    /// This is useful for writing headers with reserved or ignored areas.
+    /// 
+    /// # Arguments
+    /// - `input`: The number of zero-bytes to write.
+    /// - `writer`: The [`Write`]er to write to.
+    /// 
+    /// # Errors
+    /// This function errors if we failed to write to the given writer.
+    #[inline]
+    fn try_to_bytes_dynamic(&self, input: usize, mut writer: impl Write) -> Result<(), Self::Error> {
+        match writer.write_all(&vec![ 0; input ]) {
+            Ok(_)    => Ok(()),
+            Err(err) => Err(SerializeError::Write { err }),
+        }
     }
 }
 impl<T: TryToBytesDynamic<I>, I> TryToBytesDynamic<I> for (T,)
