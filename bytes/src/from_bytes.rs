@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    30 Sep 2023, 14:02:39
+//    30 Sep 2023, 14:19:47
 //  Auto updated?
 //    Yes
 // 
@@ -125,116 +125,7 @@ impl PrimitiveFromBytes for f64 {}
 
 
 
-/***** LIBRARY *****/
-/// Defines that a type can be parsed from a series of bytes.
-/// 
-/// This can be thought of as a non-erroring, non-configurable counterpart to the [`TryFromBytesDynamic`].
-/// In fact, it is implemented as a more convenient alias for a dynamic implementation that takes `()` as input and has [`Infallible`](std::convert::Infallible) as error type.
-/// 
-/// Typically, you can automatically derive this trait using the [`FromBytes`](crate::procedural::FromBytes)-macro.
-/// 
-/// # Example
-/// ```rust
-/// # use std::io::Read;
-/// use bytes::{FromBytes as _, TryFromBytesDynamic};
-/// 
-/// struct Example {
-///     num : u16,
-/// }
-/// impl TryFromBytesDynamic<()> for Example {
-///     type Error = std::convert::Infallible;
-/// 
-///     #[inline]
-///     fn try_from_bytes_dynamic(input: (), mut reader: impl Read) -> Result<Self, Self::Error> {
-///         Ok(Self {
-///             num : u16::try_from_bytes_dynamic(input, reader).unwrap(),
-///         })
-///     }
-/// }
-/// 
-/// assert_eq!(Example::try_from_bytes_dynamic((), &[ 0x00, 0x2A ]).unwrap().num, 10752);
-/// // Equivalent and more convenient
-/// assert_eq!(Example::from_bytes(&[ 0x00, 0x2A ]).num, 10752);
-/// ```
-pub trait FromBytes: TryFromBytesDynamic<(), Error = std::convert::Infallible> {
-    /// Parses ourselves from the given bytes.
-    /// 
-    /// # Arguments
-    /// - `reader`: The [`Read`]er object to parse from.
-    /// 
-    /// # Returns
-    /// A new instance of Self parsed from the given bytes.
-    /// 
-    /// # Examples
-    /// ```rust
-    /// use bytes::FromBytes as _;
-    /// 
-    /// assert_eq!(<()>::try_from_bytes(&[]), ());
-    /// ```
-    fn from_bytes(bytes: impl Read) -> Self;
-}
-impl<T: TryFromBytesDynamic<(), Error = std::convert::Infallible>> FromBytes for T {
-    /// Automatic implementation of `FromBytes` for [`TryFromBytesDynamic`]'s that take no input (`()`) and do not error ([`std::convert::Infallible`]).
-    #[inline]
-    #[track_caller]
-    fn from_bytes(reader: impl Read) -> Self { Self::try_from_bytes_dynamic((), reader).unwrap() }
-}
-
-
-
-/// Defines that a type can be parsed from a series of bytes, but requires additional input to do so.
-/// 
-/// This can be thought of as a non-erroring counterpart to the [`TryFromBytesDynamic`].
-/// In fact, it is implemented as a more convenient alias for an implementation that has [`Infallible`](std::convert::Infallible) as error type.
-/// 
-/// Typically, you can automatically derive this trait using the [`FromBytesDynamic`](crate::procedural::FromBytesDynamic)-macro.
-/// 
-/// # Example
-/// ```rust
-/// # use std::io::Read;
-/// use bytes::{FromBytesDynamic as _, TryFromBytesDynamic};
-/// 
-/// struct Example {
-///     data : Vec<u8>,
-/// }
-/// impl TryFromBytesDynamic<usize> for Example {
-///     type Error = std::convert::Infallible;
-/// 
-///     #[inline]
-///     fn try_from_bytes_dynamic(input: usize, mut reader: impl Read) -> Result<Self, Self::Error> {
-///         Ok(Self {
-///             num : Vec::try_from_bytes_dynamic((input, ()), reader).unwrap(),
-///         })
-///     }
-/// }
-/// 
-/// assert_eq!(Example::try_from_bytes_dynamic((2, ()), &[ 0x00, 0x2A ]).unwrap().data, vec![ 0x00, 0x2A ]);
-/// // Equivalent and more convenient
-/// assert_eq!(Example::from_bytes_dynamic(2, &[ 0x00, 0x2A ]).data, vec![ 0x00, 0x2A ]);
-/// ```
-pub trait FromBytesDynamic<I>: TryFromBytesDynamic<I, Error = std::convert::Infallible> {
-    /// Parses ourselves from the given input and bytes.
-    /// 
-    /// # Arguments
-    /// - `input`: The additional input needed to make sense of this, like some length.
-    /// - `reader`: The [`Read`]er object to parse from.
-    /// 
-    /// # Returns
-    /// A new instance of Self parsed from the given bytes.
-    /// 
-    /// # Examples
-    /// See the documentation for the trait itself for an example.
-    fn from_bytes_dynamic(input: I, bytes: impl Read) -> Self;
-}
-impl<T: TryFromBytesDynamic<I, Error = std::convert::Infallible>, I> FromBytesDynamic<I> for T {
-    /// Automatic implementation of `FromBytes` for [`TryFromBytesDynamic`]'s that take no input (`()`) and do not error ([`std::convert::Infallible`]).
-    #[inline]
-    #[track_caller]
-    fn from_bytes_dynamic(input: I, reader: impl Read) -> Self { Self::try_from_bytes_dynamic(input, reader).unwrap() }
-}
-
-
-
+/***** AUXILLARY *****/
 /// Defines that a type can be parsed from a series of bytes.
 /// 
 /// This can be thought of as a non-configurable counterpart to the [`TryFromBytesDynamic`].
@@ -295,6 +186,9 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 
 
 
+
+
+/***** LIBRARY *****/
 /// Defines that a type can be parsed from a series of bytes, but requires additional input to do so.
 /// 
 /// This can be thought of as a configurable counterpart to the [`TryFromBytes`].

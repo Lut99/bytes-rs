@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 11:30:12
 //  Last edited:
-//    30 Sep 2023, 14:07:19
+//    30 Sep 2023, 14:19:33
 //  Auto updated?
 //    Yes
 // 
@@ -97,73 +97,6 @@ impl PrimitiveToBytes for f64 {}
 
 
 /***** AUXILLARY *****/
-/// Allows a type to be serialized to bytes.
-/// 
-/// This trait acts as an alias for [`TryToBytesDynamic`] in scenario's where no input is required (i.e., `()`) and the serialization cannot fail (i.e., the error type is [`std::convert::Infallible`]).
-/// As such, it is automatically implemented for that cases.
-/// 
-/// This can be derived using the [`ToBytes`](crate::procedural::ToBytes)-macro.
-/// 
-/// # Example
-/// ```rust
-/// todo!();
-/// ```
-pub trait ToBytes: TryToBytesDynamic<(), Error = std::convert::Infallible> {
-    /// Serializes ourselves to a stream of bytes.
-    /// 
-    /// # Arguments
-    /// - `writer`: The [output stream](std::io::Write) to serialize to.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    fn to_bytes(&self, writer: impl Write);
-}
-impl<T: TryToBytesDynamic<(), Error = std::convert::Infallible>> ToBytes for T {
-    /// Automatic implementation for types implementing [`TryToBytesDynamic`] but require no input (i.e., `()`) and do not error (i.e., [`std::convert::Infallible`]).
-    #[inline]
-    fn to_bytes(&self, writer: impl Write) {
-        self.try_to_bytes_dynamic((), writer).unwrap();
-    }
-}
-
-
-
-/// Allows a type to be serialized to bytes using some additional input that configure the serialization.
-/// 
-/// This trait acts as an alias for [`TryToBytesDynamic`] in scenario's where the serialization cannot fail (i.e., the error type is [`std::convert::Infallible`]).
-/// As such, it is automatically implemented for that cases.
-/// 
-/// This can be derived using the [`ToBytesDynamic`](crate::procedural::ToBytesDynamic)-macro.
-/// 
-/// # Example
-/// ```rust
-/// todo!();
-/// ```
-pub trait ToBytesDynamic<I>: TryToBytesDynamic<I, Error = std::convert::Infallible> {
-    /// Serializes ourselves to a stream of bytes.
-    /// 
-    /// # Arguments
-    /// - `input`: The additional input needed to make sense of this, like some length.
-    /// - `writer`: The [output stream](std::io::Write) to serialize to.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    fn to_bytes_dynamic(&self, input: I, writer: impl Write);
-}
-impl<T: TryToBytesDynamic<I, Error = std::convert::Infallible>, I> ToBytesDynamic<I> for T {
-    /// Automatic implementation for types implementing [`TryToBytesDynamic`] but do not error (i.e., [`std::convert::Infallible`]).
-    #[inline]
-    fn to_bytes_dynamic(&self, input: I, writer: impl Write) {
-        self.try_to_bytes_dynamic(input, writer).unwrap();
-    }
-}
-
-
-
 /// Allows a type to be serialized to bytes.
 /// 
 /// This trait acts as an alias for [`TryToBytesDynamic`] in scenario's where no input is required (i.e., `()`).
