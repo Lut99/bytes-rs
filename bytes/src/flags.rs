@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    27 Sep 2023, 18:15:55
+//    30 Sep 2023, 11:35:49
 //  Auto updated?
 //    Yes
 // 
@@ -101,12 +101,5 @@ pub trait Flags {
 
 //         // OK done
 //         Ok(T::from_bits(bits))
-//     }
-// }
-// impl<T: Flags> ParsedLength for T {
-//     #[inline]
-//     fn parsed_len(&self) -> usize {
-//         let n_flags: usize = Self::flag_count();
-//         n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 }
 //     }
 // }
