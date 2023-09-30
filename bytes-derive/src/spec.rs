@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:12:16
 //  Last edited:
-//    30 Sep 2023, 14:32:24
+//    30 Sep 2023, 16:48:26
 //  Auto updated?
 //    Yes
 // 
@@ -60,8 +60,8 @@ pub struct MetadataInfo {
     pub input_name   : Ident,
     /// The name of the dynamic input.
     pub dynamic_name : Ident,
-    /// The type of the dynamic input.
-    pub dynamic_ty   : Type,
+    /// The type of the dynamic input, together with its "actual" Span.
+    pub dynamic_ty   : (Type, Span),
 }
 impl MetadataInfo {
     /// Generates default metadata info for the parser.
@@ -73,7 +73,7 @@ impl MetadataInfo {
         Self {
             input_name   : Ident::new("reader", Span::call_site()),
             dynamic_name : Ident::new("input", Span::call_site()),
-            dynamic_ty   : Type::Tuple(TypeTuple { paren_token: Paren(Span::call_site()), elems: Punctuated::default() }),
+            dynamic_ty   : (Type::Tuple(TypeTuple { paren_token: Paren(Span::call_site()), elems: Punctuated::default() }), Span::call_site()),
         }
     }
 
@@ -86,7 +86,7 @@ impl MetadataInfo {
         Self {
             input_name   : Ident::new("writer", Span::call_site()),
             dynamic_name : Ident::new("input", Span::call_site()),
-            dynamic_ty   : Type::Tuple(TypeTuple { paren_token: Paren(Span::call_site()), elems: Punctuated::default() }),
+            dynamic_ty   : (Type::Tuple(TypeTuple { paren_token: Paren(Span::call_site()), elems: Punctuated::default() }), Span::call_site()),
         }
     }
 }
