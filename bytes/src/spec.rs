@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    29 Sep 2023, 21:48:58
+//    30 Sep 2023, 10:37:23
 //  Auto updated?
 //    Yes
 // 
@@ -327,6 +327,54 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
         Ok(Self::from_be_bytes(&bytes))
     }
 }
+impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&BigEndian> for T {
+    type Error = crate::errors::ParseError;
+
+    /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
+    /// 
+    /// # Arguments
+    /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
+    /// - `reader`: The [`Read`]er to read the bytes to parse from.
+    /// 
+    /// # Returns
+    /// An instance of self that is parsed from the given stream of bytes.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to read the required number of bytes from the given `reader`.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: &BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
+        Self::try_from_bytes_dynamic(*input, reader)
+    }
+}
+impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&mut BigEndian> for T {
+    type Error = crate::errors::ParseError;
+
+    /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
+    /// 
+    /// # Arguments
+    /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
+    /// - `reader`: The [`Read`]er to read the bytes to parse from.
+    /// 
+    /// # Returns
+    /// An instance of self that is parsed from the given stream of bytes.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to read the required number of bytes from the given `reader`.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: &mut BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
+        Self::try_from_bytes_dynamic(*input, reader)
+    }
+}
 impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<LittleEndian> for T {
     type Error = crate::errors::ParseError;
 
@@ -357,6 +405,54 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
 
         // Now simply parse the bytes
         Ok(Self::from_le_bytes(&bytes))
+    }
+}
+impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&LittleEndian> for T {
+    type Error = crate::errors::ParseError;
+
+    /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
+    /// 
+    /// # Arguments
+    /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
+    /// - `reader`: The [`Read`]er to read the bytes to parse from.
+    /// 
+    /// # Returns
+    /// An instance of self that is parsed from the given stream of bytes.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to read the required number of bytes from the given `reader`.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: &LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
+        Self::try_from_bytes_dynamic(*input, reader)
+    }
+}
+impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&mut LittleEndian> for T {
+    type Error = crate::errors::ParseError;
+
+    /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
+    /// 
+    /// # Arguments
+    /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
+    /// - `reader`: The [`Read`]er to read the bytes to parse from.
+    /// 
+    /// # Returns
+    /// An instance of self that is parsed from the given stream of bytes.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to read the required number of bytes from the given `reader`.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    #[inline]
+    fn try_from_bytes_dynamic(input: &mut LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
+        Self::try_from_bytes_dynamic(*input, reader)
     }
 }
 
@@ -832,7 +928,7 @@ where
         ))
     }
 }
-impl<const LEN: usize, T: for<'a> TryFromBytesDynamic<&'a I>, I: Clone> TryFromBytesDynamic<I> for [ T; LEN ]
+impl<const LEN: usize, T: for<'a> TryFromBytesDynamic<&'a I>, I: AsRef<I>> TryFromBytesDynamic<I> for [ T; LEN ]
 where
     for<'a> <T as TryFromBytesDynamic<&'a I>>::Error: 'static,
 {
@@ -843,11 +939,11 @@ where
     /// This parser assumes the elements are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using a tuple with the [`TryFromBytesDynamic<usize>`] overload of `()`.
     /// 
     /// # Arguments
-    /// - `input`: The input to each of the parsers. It is passed by reference such that the parsers can clone as necessary.
+    /// - `input`: The input to each of the parsers. It is passed by reference (i.e., [`input.as_ref()`](AsRef<I>)) such that the parsers can clone as necessary.
     /// - `reader`: The reader where the inner parsers will gets their bytes from.
     /// 
     /// # Returns
-    /// An array with parsed instances the inner type.
+    /// An array with parsed instances of the inner type.
     /// 
     /// # Errors
     /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
@@ -860,7 +956,7 @@ where
         // Simply parse all of them in-order
         let mut res: [ Option<T>; LEN ] = std::array::from_fn(|_| None);
         for i in 0..LEN {
-            res[i] = match T::try_from_bytes_dynamic(&input, &mut reader) {
+            res[i] = match T::try_from_bytes_dynamic(input.as_ref(), &mut reader) {
                 Ok(inner) => Some(inner),
                 Err(err)  => { return Err(ParseError::Field { name: format!("[{i}]"), err: Box::new(err) }); },
             };
@@ -868,38 +964,42 @@ where
         Ok(res.map(|elem| elem.unwrap()))
     }
 }
-// impl<T: TryToBytesDynamic<I>, I: Clone> TryToBytesDynamic<I> for [ T ]
-// where
-//     T::Error: 'static,
-// {
-//     type Error = crate::errors::SerializeError;
+impl<T: for<'a> TryFromBytesDynamic<&'a I>, I: AsRef<I>> TryFromBytesDynamic<(usize, I)> for Vec<T>
+where
+    for<'a> <T as TryFromBytesDynamic<&'a I>>::Error: 'static,
+{
+    type Error = crate::errors::ParseError;
 
-//     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
-//         // Simply serialize all of them in-order
-//         for (i, elem) in self.iter().enumerate() {
-//             if let Err(err) = elem.try_to_bytes_dynamic(input.clone(), &mut writer) {
-//                 return Err(SerializeError::Field { name: format!("[{i}]"), err: Box::new(err) });
-//             }
-//         }
-//         Ok(())
-//     }
-// }
-// impl<T: TryToBytesDynamic<I>, I: Clone> TryToBytesDynamic<I> for Vec<T>
-// where
-//     T::Error: 'static,
-// {
-//     type Error = crate::errors::SerializeError;
-
-//     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
-//         // Simply serialize all of them in-order
-//         for (i, elem) in self.iter().enumerate() {
-//             if let Err(err) = elem.try_to_bytes_dynamic(input.clone(), &mut writer) {
-//                 return Err(SerializeError::Field { name: format!("[{i}]"), err: Box::new(err) });
-//             }
-//         }
-//         Ok(())
-//     }
-// }
+    /// Parses a vector of a nested TryFromBytesDynamic type.
+    ///
+    /// This parser assumes the elements are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using a tuple with the [`TryFromBytesDynamic<usize>`] overload of `()`.
+    /// 
+    /// # Arguments
+    /// - `input`: A tuple with the number of elements to parse first, and then the input to each of the parsers. It is passed by reference (i.e., [`input.1.as_ref()`](AsRef<I>)) such that the parsers can clone as necessary.
+    /// - `reader`: The reader where the inner parsers will gets their bytes from.
+    /// 
+    /// # Returns
+    /// A vector with parsed instances of the inner type.
+    /// 
+    /// # Errors
+    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    fn try_from_bytes_dynamic(input: (usize, I), mut reader: impl Read) -> Result<Self, Self::Error> {
+        // Simply parse all of them in-order
+        let mut res: Vec<T> = Vec::with_capacity(input.0);
+        for i in 0..input.0 {
+            res.push(match T::try_from_bytes_dynamic(input.1.as_ref(), &mut reader) {
+                Ok(inner) => inner,
+                Err(err)  => { return Err(ParseError::Field { name: format!("[{i}]"), err: Box::new(err) }); },
+            });
+        }
+        Ok(res)
+    }
+}
 
 // // Implement for string-likes
 // impl TryToBytesDynamic<()> for str {
