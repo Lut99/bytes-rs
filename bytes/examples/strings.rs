@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:34:25
 //  Last edited:
-//    20 Sep 2023, 18:20:44
+//    02 Oct 2023, 20:50:19
 //  Auto updated?
 //    Yes
 // 
@@ -12,16 +12,17 @@
 //!   Defines parsing a string with a dynamic size.
 // 
 
-use bytes::{TryFromBytes, TryFromBytesDynamic};
+use bytes::{TryFromBytes, TryFromBytesDynamic, TryToBytes, TryToBytesDynamic};
 
 
 /***** BYTE FORMATS *****/
 /// Showcases dynamic parsing based on user
 #[derive(TryFromBytesDynamic)]
-#[bytes(dynamic = "usize")]
+#[derive(TryToBytesDynamic)]
+#[bytes(dynamic_ty = "usize")]
 struct StringsManual {
     /// Parse some text
-    #[bytes(dynamic = dynamic_input)]
+    #[bytes(input = input)]
     text : String,
 }
 
@@ -32,7 +33,7 @@ struct Strings {
     #[bytes]
     n_bytes : u8,
     /// ...and then we parse the string with that
-    #[bytes(dynamic = n_bytes as usize)]
+    #[bytes(input = n_bytes as usize)]
     text    : String,
 }
 

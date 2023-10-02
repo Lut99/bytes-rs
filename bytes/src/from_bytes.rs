@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    30 Sep 2023, 14:19:47
+//    02 Oct 2023, 20:15:49
 //  Auto updated?
 //    Yes
 // 
@@ -35,7 +35,13 @@ pub enum Error {
     /// todo!();
     /// ```
     Read { err: std::io::Error },
-
+    /// Couldn't seek the given input.
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
+    Seek { err: std::io::Error },
     /// A sub-parser of a field failed.
     /// 
     /// # Example
@@ -78,8 +84,9 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
-            Read { .. }                    => write!(f, "Failed to read from given reader"),
-            Field { name, .. }             => write!(f, "Failed to parse field '{name}'"),
+            Read { .. }        => write!(f, "Failed to read from given reader"),
+            Seek { .. }        => write!(f, "Faield to seek given reader"),
+            Field { name, .. } => write!(f, "Failed to parse field '{name}'"),
 
             NonUtf8Char { raw }  => write!(f, "Byte '{raw:#010X}' is not a valid UTF-8 character"),
             NonUtf8String { .. } => write!(f, "Given bytes are not valid UTF-8"),
@@ -90,8 +97,9 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         use Error::*;
         match self {
-            Read { err }          => Some(err),
-            Field { err, .. }     => Some(&**err),
+            Read { err }      => Some(err),
+            Seek { err }      => Some(err),
+            Field { err, .. } => Some(&**err),
 
             NonUtf8Char { .. }    => None,
             NonUtf8String { err } => Some(err),

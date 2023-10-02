@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    30 Sep 2023, 11:44:21
+//    02 Oct 2023, 20:50:32
 //  Auto updated?
 //    Yes
 // 
@@ -89,10 +89,10 @@ pub mod to_bytes;
 
 // Bring some of that into the crate namespace
 // pub use flags::Flags;
-pub use from_bytes::{FromBytes, FromBytesDynamic, TryFromBytes, TryFromBytesDynamic};
+pub use from_bytes::{TryFromBytes, TryFromBytesDynamic};
 pub use order::{BigEndian, Endianness, LittleEndian};
 pub use string::{Lossiness, Lossy, NonLossy};
-pub use to_bytes::{ToBytes, ToBytesDynamic, TryToBytes, TryToBytesDynamic};
+pub use to_bytes::{TryToBytes, TryToBytesDynamic};
 
 
 
@@ -383,4 +383,4 @@ pub mod procedural {
     pub mod TryFromBytesDynamic {}
 }
 #[cfg(feature = "derive")]
-pub use bytes_derive::{TryFromBytes, TryFromBytesDynamic};
+pub use bytes_derive::{TryFromBytes, TryFromBytesDynamic, TryToBytes, TryToBytesDynamic};
