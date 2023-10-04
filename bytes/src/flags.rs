@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    30 Sep 2023, 11:35:49
+//    04 Oct 2023, 23:01:36
 //  Auto updated?
 //    Yes
 // 
@@ -13,93 +13,214 @@
 //!   flags.
 // 
 
-use crate::errors::ParseError;
-use crate::spec::{ParsedLength, TryFromBytesDynamic};
+use std::io::{Read, Write};
+use std::ops::{Deref, DerefMut};
+
+use crate::from_bytes::TryFromBytesDynamic;
+use crate::to_bytes::TryToBytesDynamic;
+
+
+/***** LIBRARY MACROS *****/
+/// A macro for generating ad-hoc [`Flag`]-like types.
+/// 
+/// # Arguments
+/// This macro takes as input a list of field names to generate. These fields are in-order of the flags that we're parsing.
+/// 
+/// For example:
+/// ```rust
+/// use bytes::{flags, TryFromBytes as _};
+/// 
+/// /// A test struct
+/// flags! {
+///     flags TestFlags {
+///         flag1,
+///         // Optionally, you can add the type
+///         flag2: bool,
+///         flag3,
+///     }
+/// };
+/// 
+/// let flags: TestFlags = TestFlags::try_from_bytes(&[ 0b10100000 ][..]).unwrap();
+/// assert_eq!(flags.flag1, true);
+/// assert_eq!(flags.flag2, false);
+/// assert_eq!(flags.flag3, true);
+/// ```
+/// 
+/// # Parsing size
+/// The resulting parsing & serializer will pack the bits as tightly as possible. As such, the number of bytes required to parse/store the generated struct is `(<NUM_FIELDS> + 8 - 1) / 8`.
+/// 
+/// To pack the bits less tightly, use unnamed fields as simply empty space, e.g.:
+/// ```rust
+/// use bytes::{flags, TryFromBytes as _};
+/// 
+/// flags! {
+///     flags SparseFlags {
+///         flag1,
+///         _res,
+///         flag2,
+///     }
+/// }
+/// 
+/// let flags: TestFlags = TestFlags::try_from_bytes(&[ 0b10100000 ][..]).unwrap();
+/// assert_eq!(flags.flag1, true);
+/// assert_eq!(flags.flag2, true);
+/// ```
+#[macro_export]
+macro_rules! flags {
+    // Base-case, where we do nothing
+    {} => {};
+    // Base-case, where we ignore commas nothing
+    {, $($t:tt)*} => { flags! { $($t)* } };
+
+    // Base-case, where there's only one structs
+    {
+        $(#[$outer:meta])*
+        $outer_vis:vis flags $name:ident {
+            $($(#[$field_attr:meta])* $inner_vis:vis $field_name:ident $(:bool)?),* $(,)?
+        }
+        $($t:tt)*
+    } => {
+        $(#[$outer])*
+        $outer_vis struct $name {
+            $($(#[$field_attr])* $inner_vis $field_name : bool),*
+        }
+        impl ::bytes::from_bytes::TryFromBytesDynamic<()> for $name {
+            type Error = ::bytes::from_bytes::Error;
+
+            fn try_from_bytes_dynamic(_input: (), mut reader: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
+                // Compute how many bytes we need to read
+                const N_FLAGS: ::std::primitive::usize = flags!(count_fields : $($field_name),*);
+                const N_BYTES: ::std::primitive::usize = (N_FLAGS + 8 - 1) / 8;
+
+                // Read those bytes
+                let mut bytes: [::std::primitive::u8; N_BYTES] = [0; N_BYTES];
+                if let Err(err) = reader.read_exact(&mut bytes) { return ::std::result::Result::Err(::bytes::from_bytes::Error::Read { err }); }
+
+                // Serialize the bytes to a list of flags
+                let mut flags: [::std::primitive::bool; N_FLAGS] = [false; N_FLAGS];
+                for i in 0..N_BYTES {
+                    for j in 0..8 {
+                        if i * 8 + j >= N_FLAGS { break; }
+                        flags[i * 8 + j] = ((bytes[i] >> (7 - j)) & 0x1) == 1;
+                    }
+                }
+
+                // Unpack the list
+                let [ $($field_name),* ] = flags;
+
+                // Ok, build self
+                ::std::result::Result::Ok(Self {
+                    $($field_name),*
+                })
+            }
+        }
+        impl ::bytes::to_bytes::TryToBytesDynamic<()> for $name {
+            type Error = ::bytes::to_bytes::Error;
+
+            fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {
+                // Compute how many bytes we need to read
+                const N_FLAGS: ::std::primitive::usize = flags!(count_fields : $($field_name),*);
+                const N_BYTES: ::std::primitive::usize = (N_FLAGS + 8 - 1) / 8;
+
+                // Put the bytes into an array of bits
+                let flags: [::std::primitive::bool; N_FLAGS] = [ $(self.$field_name),* ];
+
+                // Write that sequentially to a series of bytes
+                for i in 0..N_BYTES {
+                    let mut res: ::std::primitive::u8 = 0x00;
+                    for j in 0..8 {
+                        if i * 8 + j >= N_FLAGS { break; }
+                        if flags[i * 8 + j] { res |= 0x1 << (7 - j) }
+                    }
+                    if let ::std::result::Result::Err(err) = writer.write_all(&[ res ]) {
+                        return ::std::result::Result::Err(::bytes::to_bytes::Error::Write { err });
+                    }
+                }
+
+                // Done!
+                ::std::result::Result::Ok(())
+            }
+        }
+
+        // Generate any remaining tokens
+        flags!{ $($t)* }
+    };
+
+    // Dope case: simply go nuts and count the number of fields given
+    (count_fields :) => { 0 };
+    (count_fields : $field:ident) => { 1 };
+    (count_fields : $field:ident,$($fields:ident),+) => { 1 + flags!(count_fields : $($fields),+) };
+}
+
+
+
 
 
 /***** LIBRARY *****/
-/// A special trait that eases implementing a type containing only flags.
-/// 
-/// Implementing this trait for a type automatically derives [`TryFromBytesDynamic`](TryFromBytesDynamic).
-/// As such, the functions in this trait define an interface between the automatically derived parser and this type.
+/// Implements a series of unnamed flags.
 /// 
 /// # Example
 /// ```rust
-/// use bytes::{Flags, TryFromBytes as _};
-/// 
-/// struct CoolFlags {
-///     is_cool : bool,
-///     is_kind : bool,
-///     is_dope : bool,
-/// }
-/// impl Flags for CoolFlags {
-///     fn from_bits(bits: Vec<bool>) -> Self {
-///         // Unwrap the list of flags, which should be exactly three long
-///         assert_eq!(bits.len(), 3);
-///         Self {
-///             is_cool : bits[0],
-///             is_kind : bits[1],
-///             is_dope : bits[2],
-///         }
-///     }
-///     
-///     #[inline]
-///     fn flag_count() -> usize { 3 }
-/// }
-/// 
-/// assert_eq!(CoolFlags::try_from_bytes(&[ 0b10100000 ]).unwrap().is_dope, true);
+/// todo!();
 /// ```
-pub trait Flags {
-    /// Constructor for Self that takes the parsed bits.
-    /// 
-    /// This is meant to be called from the automatically implemented [`TryFromBytesDynamic`] implementation.
-    /// It will provide a list with the requested number of bits parsed as booleans, and this function must order
-    /// them appropriately for this struct.
-    /// 
-    /// # Arguments
-    /// - `bits`: A vector with the parsed bits as booleans.
-    /// 
-    /// # Returns
-    /// The number of bits parsed.
-    /// 
-    /// # Panics
-    /// This function should panic if the number of bits is not what was requested, which should never happen but just in case.
-    /// 
-    /// # Example
-    /// For an example implementation, see the example given for the [`Flags`]-trait as a whole.
-    fn from_bits(bits: Vec<bool>) -> Self;
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Flags<const N: usize>(pub [bool; N]);
 
-    /// Returns how many bits we're parsing.
-    /// 
-    /// This is meant to be called from the automatically implemented [`TryFromBytesDynamic`] implementation to determine
-    /// how many bytes to parse. As such, the flag count will automatically round up to the nearest number of bytes (i.e.,
-    /// `0` becomes `0` bytes, `1` becomes `1` bytes, `7` becomes `1` bytes, `9` becomes `2` bytes, etc).
-    /// 
-    /// # Returns
-    /// The number of bits to parse.
-    /// 
-    /// # Example
-    /// For an example implementation, see the example given for the [`Flags`]-trait as a whole.
-    fn flag_count() -> usize;
+impl<const N: usize> Deref for Flags<N> {
+    type Target = [bool; N];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
-// impl<T: Flags> TryFromBytesDynamic<()> for T {
-//     type Error = crate::errors::ParseError;
+impl<const N: usize> DerefMut for Flags<N> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+}
 
-//     fn try_from_bytes_dynamic(_input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
-//         let bytes: &[u8] = bytes.as_ref();
+impl<const N: usize> TryFromBytesDynamic<()> for Flags<N> {
+    type Error = crate::from_bytes::Error;
 
-//         // Attempt to parse enough bytes
-//         let n_flags: usize = Self::flag_count();
-//         let n_bytes: usize = n_flags / 8 + if n_flags % 8 > 0 { 1 } else { 0 };
-//         if bytes.len() < n_bytes { return Err(ParseError::NotEnoughInput { got: bytes.len(), needed: n_bytes }); }
+    fn try_from_bytes_dynamic(_input: (), mut reader: impl Read) -> Result<Self, Self::Error> {
+        // Compute how many bytes we need to read
+        let n_bytes: usize = (N + 8 - 1) / 8;
 
-//         // Scour them for bits
-//         let mut bits: Vec<bool> = Vec::with_capacity(n_flags);
-//         for i in 0..n_flags {
-//             bits.push(((bytes[i / 8]) >> (7 - i % 8)) & 0x1 == 1);
-//         }
+        // Read those bytes
+        let mut bytes: Vec<u8> = vec![0; n_bytes];
+        if let Err(err) = reader.read_exact(&mut bytes) { return Err(crate::from_bytes::Error::Read { err }); }
 
-//         // OK done
-//         Ok(T::from_bits(bits))
-//     }
-// }
+        // Serialize the bytes to a list of flags
+        let mut flags: [bool; N] = [false; N];
+        for i in 0..n_bytes {
+            for j in 0..8 {
+                if i * 8 + j >= N { break; }
+                flags[i * 8 + j] = ((bytes[i] >> (7 - j)) & 0x1) == 1;
+            }
+        }
+
+        // Done!
+        Ok(Self(flags))
+    }
+}
+impl<const N: usize> TryToBytesDynamic<()> for Flags<N> {
+    type Error = crate::to_bytes::Error;
+
+    fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+        // Compute how many bytes we need to read
+        let n_bytes: usize = (N + 8 - 1) / 8;
+
+        // Write that sequentially to a series of bytes
+        for i in 0..n_bytes {
+            let mut res: u8 = 0x00;
+            for j in 0..8 {
+                if i * 8 + j >= N { break; }
+                if self.0[i * 8 + j] { res |= 0x1 << (7 - j) }
+            }
+            if let Err(err) = writer.write_all(&[ res ]) {
+                return Err(crate::to_bytes::Error::Write { err });
+            }
+        }
+
+        // Done!
+        Ok(())
+    }
+}

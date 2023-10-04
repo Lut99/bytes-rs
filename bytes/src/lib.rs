@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    02 Oct 2023, 20:50:32
+//    04 Oct 2023, 22:54:30
 //  Auto updated?
 //    Yes
 // 
@@ -79,7 +79,7 @@
 //  
 
 // Declare the submodules
-// pub mod flags;
+pub mod flags;
 pub mod from_bytes;
 pub mod order;
 pub mod string;
@@ -88,7 +88,7 @@ pub mod to_bytes;
 
 
 // Bring some of that into the crate namespace
-// pub use flags::Flags;
+pub use flags::Flags;
 pub use from_bytes::{TryFromBytes, TryFromBytesDynamic};
 pub use order::{BigEndian, Endianness, LittleEndian};
 pub use string::{Lossiness, Lossy, NonLossy};

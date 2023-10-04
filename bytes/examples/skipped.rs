@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2023, 13:41:21
 //  Last edited:
-//    21 Sep 2023, 13:45:44
+//    04 Oct 2023, 21:49:32
 //  Auto updated?
 //    Yes
 // 
@@ -39,11 +39,11 @@ struct Partial {
 
 /***** ENTRYPOINT *****/
 fn main() {
-    let empty = Empty::try_from_bytes(&[ 0x00, 0x2A, 0x00, 0x2A ]).unwrap();
+    let empty = Empty::try_from_bytes(&[ 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap();
     assert_eq!(empty.num1, 0);
     assert_eq!(empty.num2, 0);
 
-    let partial = Partial::try_from_bytes(&[ 0x00, 0x2A, 0x00, 0x2A ]).unwrap();
+    let partial = Partial::try_from_bytes(&[ 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap();
     assert_eq!(partial.num1, 10752);
     assert_eq!(partial.num2, 0);
 }

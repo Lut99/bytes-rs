@@ -4,7 +4,7 @@
 //  Created:
 //    21 Sep 2023, 13:50:25
 //  Last edited:
-//    21 Sep 2023, 14:01:46
+//    04 Oct 2023, 23:04:19
 //  Auto updated?
 //    Yes
 // 
@@ -12,55 +12,30 @@
 //!   Showcases parsing flags
 // 
 
-use bytes::{Flags, TryFromBytes as _};
+use bytes::{flags, Flags, TryFromBytes as _, TryToBytes as _};
 
 
 /***** HEADERS *****/
-/// Defines how to read three successive flags stored within a byte.
-/// 
-/// Note that implementing a [`Flags`] automatically derives [`TryFromBytes`](struct@bytes::TryFromBytes) for us!
-struct CoolFlags {
-    is_cool : bool,
-    is_kind : bool,
-    is_dope : bool,
-}
-impl Flags for CoolFlags {
-    fn from_bits(bits: Vec<bool>) -> Self {
-        // Unwrap the list of flags, which should be exactly three long
-        assert_eq!(bits.len(), 3);
-        Self {
-            is_cool : bits[0],
-            is_kind : bits[1],
-            is_dope : bits[2],
-        }
-    }
+// Defining our own type to name the flags!
+flags! {
+    /// Example struct that reads three successive bits from the input stream.
+    /// 
+    /// Note that the rest of the byte will be discarded (i.e., it always reads whole bytes)
+    flags CoolFlags {
+        is_cool : bool,
+        is_kind : bool,
+        is_dope : bool,
+    },
 
-    #[inline]
-    fn flag_count() -> usize { 3 }
-}
-
-/// We can also define some longer flags area with unused flags
-struct SparseFlags {
-    // This will be byte 1, bit 1
-    prop1 : bool,
-    // This will be byte 2, bit 8
-    prop2 : bool,
-}
-impl Flags for SparseFlags {
-    fn from_bits(bits: Vec<bool>) -> Self {
-        // Unwrap the list of flags, which should be exactly sixteen long...
-        assert_eq!(bits.len(), 16);
-
-        // ...but we use only the first and the last
-        Self {
-            prop1 : bits[0],
-            prop2 : bits[15],
-        }
-    }
-
-    // The trick: we request way too many flags...
-    #[inline]
-    fn flag_count() -> usize { 16 }
+    /// We can also define some longer flags area with unused flags by simply adding bogus fields
+    flags SparseFlags {
+        // This will be byte 1, bit 1
+        prop1 : bool,
+        // Ignored!
+        _res  : bool,
+        // This will be byte 2, bit 8
+        prop2 : bool,
+    },
 }
 
 
@@ -69,16 +44,42 @@ impl Flags for SparseFlags {
 
 /***** ENTRYPOINT *****/
 fn main() {
-    // Parse some flags!
+    /* PARSING */
+    // Parse unnamed flags!
+    let input: &[u8] = &[ 0b10100000 ];
+    let flags: Flags<3> = Flags::try_from_bytes(input).unwrap();
+    assert_eq!(flags[0], true);
+    assert_eq!(flags[1], false);
+    assert_eq!(flags[2], true);
+
+    // Parse named flags!
     let input: &[u8] = &[ 0b10100000 ];
     let flags: CoolFlags = CoolFlags::try_from_bytes(input).unwrap();
     assert_eq!(flags.is_cool, true);
     assert_eq!(flags.is_kind, false);
     assert_eq!(flags.is_dope, true);
 
-    // Parse more flags!
-    let input: &[u8] = &[ 0b10010100, 0b00111000 ];
+    // Parse sparse flags!
     let flags: SparseFlags = SparseFlags::try_from_bytes(input).unwrap();
     assert_eq!(flags.prop1, true);
-    assert_eq!(flags.prop2, false);
+    assert_eq!(flags.prop2, true);
+
+    /* SERIALIZING */
+    // Serialize unnamed flags!
+    let flags: Flags<3> = Flags([false, false, true]);
+    let mut bytes: [u8; 1] = [0; 1];
+    flags.try_to_bytes(&mut bytes[..]).unwrap();
+    assert_eq!(bytes[0], 0b00100000);
+
+    // Serialize named flags!
+    let flags: CoolFlags = CoolFlags { is_cool: false, is_kind: false, is_dope: true };
+    let mut bytes: [u8; 1] = [0; 1];
+    flags.try_to_bytes(&mut bytes[..]).unwrap();
+    assert_eq!(bytes[0], 0b00100000);
+
+    // Serialize sparse flags!
+    let flags: SparseFlags = SparseFlags { prop1: true, _res: false, prop2: false,  };
+    let mut bytes: [u8; 1] = [0; 1];
+    flags.try_to_bytes(&mut bytes[..]).unwrap();
+    assert_eq!(bytes[0], 0b10000000);
 }

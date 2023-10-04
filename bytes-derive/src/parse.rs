@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:11:47
 //  Last edited:
-//    02 Oct 2023, 20:58:55
+//    04 Oct 2023, 21:55:15
 //  Auto updated?
 //    Yes
 // 
@@ -14,7 +14,7 @@
 
 use proc_macro2::Span;
 use proc_macro_error::{Diagnostic, Level};
-use syn::{parse_str, Attribute, DataStruct, Expr, ExprLit, Ident, Lit, LitBool, LitStr, Meta, Path, Token, Type};
+use syn::{parse_str, Attribute, DataStruct, Expr, ExprLit, Ident, Lit, LitBool, LitStr, Meta, MetaList, Path, Token, Type};
 use syn::parse::ParseBuffer;
 use syn::spanned::Spanned as _;
 
@@ -22,9 +22,36 @@ use crate::spec::{FieldParserInfo, FieldSerializerInfo, TryFromBytesDynamicInfo,
 
 
 /****** HELPERS *****/
+/// Parses the attributes in a [`Meta::List`].
+/// 
+/// # Arguments
+/// - `tokens`: The [`MetaList`] encoding the tokens to parse.
+/// 
+/// # Returns
+/// A new list of [`Meta`]s to further consider.
+/// 
+/// # Errors
+/// This function may error if the given stream was not valid tokens.
+fn parse_list_attrs(l: &MetaList) -> Result<Vec<Meta>, Diagnostic> {
+    match l.parse_args_with(|buffer: &ParseBuffer| {
+        // Repeatedly parsed metas separated by commands
+        let mut metas: Vec<Meta> = vec![ buffer.parse()? ];
+        while !buffer.is_empty() {
+            // Parse a comma then a meta
+            buffer.parse::<Token!(,)>()?;
+            metas.push(buffer.parse()?);
+        }
+        Ok(metas)
+    }) {
+        Ok(args) => Ok(args),
+        Err(err) => Err(Diagnostic::spanned(l.tokens.span(), Level::Error, "Failed to parse `#[bytes(...)]` arguments".into()).span_error(err.span(), err.to_string())),
+    }
+}
+
 /// Parses an attribute if it's `#[bytes(...)]` and calls a callback for every such attribute.
 /// 
 /// # Arguments
+/// - `is_parser`: Whether this is called for the parser (true) or the serializer (false).
 /// - `attr`: The [`Attribute`] to parse.
 /// - `path_callback`: The function to call for every parsed nested attribute if `#[bytes]` is a path. If it errors, then the parser immediately propagates the result to its own error.
 /// - `list_callback`: The function to call for every parsed nested attribute if `#[bytes(...)]` is a list. If it errors, then the parser immediately propagates the result to its own error.
@@ -34,7 +61,7 @@ use crate::spec::{FieldParserInfo, FieldSerializerInfo, TryFromBytesDynamicInfo,
 /// 
 /// # Errors
 /// This function may error if we failed to parse the contents of `#[bytes(...)]` or if any callback errored.
-fn parse_attr(attr: Attribute, mut path_callback: impl FnMut(Path) -> Result<(), Diagnostic>, mut list_callback: impl FnMut(&Path, Meta) -> Result<(), Diagnostic>) -> Result<bool, Diagnostic> {
+fn parse_attr(is_parser: bool, attr: Attribute, mut path_callback: impl FnMut(Path) -> Result<(), Diagnostic>, mut list_callback: impl FnMut(&Path, Meta) -> Result<(), Diagnostic>) -> Result<bool, Diagnostic> {
     // Match the attribute's meta
     let mut found: bool = false;
     match attr.meta {
@@ -43,23 +70,28 @@ fn parse_attr(attr: Attribute, mut path_callback: impl FnMut(Path) -> Result<(),
             found = true;
 
             // Attempt to parse the list of attribues
-            let args: Vec<Meta> = match l.parse_args_with(|buffer: &ParseBuffer| {
-                // Repeatedly parsed metas separated by commands
-                let mut metas: Vec<Meta> = vec![ buffer.parse()? ];
-                while !buffer.is_empty() {
-                    // Parse a comma then a meta
-                    buffer.parse::<Token!(,)>()?;
-                    metas.push(buffer.parse()?);
-                }
-                Ok(metas)
-            }) {
-                Ok(args) => args,
-                Err(err) => { return Err(Diagnostic::spanned(l.tokens.span(), Level::Error, "Failed to parse `#[bytes(...)]` arguments".into()).span_error(err.span(), err.to_string())); },
-            };
+            let args: Vec<Meta> = parse_list_attrs(&l)?;
 
             // Call the callback for every of those
             for arg in args {
-                list_callback(&l.path, arg)?;
+                // Catch scoping meta's, i.e., `#[bytes(to(...))]` and such
+                let is_parse_scoped: bool = arg.path().is_ident("from") || arg.path().is_ident("parse") || arg.path().is_ident("parser");
+                let is_serialize_scoped: bool = arg.path().is_ident("to") || arg.path().is_ident("serialize") || arg.path().is_ident("serializer");
+                if matches!(arg, Meta::List(_)) && (is_parse_scoped || is_serialize_scoped) {
+                    let l: MetaList = if let Meta::List(l) = arg { l } else { unreachable!(); };
+
+                    // Now only call the callback if the parser makes sense
+                    if is_parser && is_parse_scoped || !is_parser && is_serialize_scoped {
+                        // Recursively parse the meta
+                        let args: Vec<Meta> = parse_list_attrs(&l)?;
+                        for arg in args {
+                            list_callback(&l.path, arg)?;
+                        }
+                    }
+                } else {
+                    // Otherwise, just call normally
+                    list_callback(&l.path, arg)?;
+                }
             }
         },
 
@@ -129,14 +161,10 @@ fn parse_expr_as_str_lit_type(expr: Expr) -> Result<(Type, Span), Diagnostic> {
     }
 }
 
-
-
-
-
-/****** LIBRARY *****/
-/// Parses toplevel & field attributes for the [`TryFromBytesDynamic`] macro.
+/// Parses a [`TryFromBytesDynamicInfo`] such that both the parse- and serialize macros have a use of it.
 /// 
 /// # Arguments
+/// - `is_parser`: Whether we're doing this for the parser (true) or the serializer (false).
 /// - `attrs`: The list of [`Attribute`]s that we will attempt to parse.
 /// - `name`: The name of the struct we're parsing.
 /// - `data`: The [`DataStruct`] that contains the fields we will parse field attributes from.
@@ -147,14 +175,14 @@ fn parse_expr_as_str_lit_type(expr: Expr) -> Result<(Type, Span), Diagnostic> {
 /// 
 /// # Errors
 /// This function errors if we failed to parse attributes in the `#[bytes(...)]` attribute.
-pub fn parse_parser(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_dynamic: bool) -> Result<TryFromBytesDynamicInfo, Diagnostic> {
+fn parse_try_from_bytes_dynamic(is_parser: bool, attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_dynamic: bool) -> Result<TryFromBytesDynamicInfo, Diagnostic> {
     // Define the default settings to modify based on what attributes we read
     let mut info: TryFromBytesDynamicInfo = TryFromBytesDynamicInfo::default(name);
 
     // First, go through all the toplevel attributes
     for attr in attrs {
         // Parse them as toplevel attributes
-        parse_attr(attr, |ident: Path| -> Result<(), Diagnostic> {
+        parse_attr(is_parser, attr, |ident: Path| -> Result<(), Diagnostic> {
             Err(Diagnostic::spanned(ident.span(), Level::Error, "Toplevel `#[bytes]` must have arguments".into()).span_suggestion(ident.span(), "#[bytes(...)]", "Try this".into()))
         }, |_: &Path, meta: Meta| -> Result<(), Diagnostic> {
             // Further match the meta
@@ -194,12 +222,12 @@ pub fn parse_parser(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_
         let mut field_info: FieldParserInfo = FieldParserInfo::default(field.ident.unwrap_or_else(|| Ident::new(&format!("{i}"), Span::call_site())), (field.ty, ty_span));
         for attr in field.attrs {
             // Parse them as toplevel attributes
-            field_info.common.enabled = parse_attr(attr, |_: Path| -> Result<(), Diagnostic> {
+            field_info.common.enabled = parse_attr(is_parser, attr, |_: Path| -> Result<(), Diagnostic> {
                 // We can safely ignore
                 Ok(())
             }, |_: &Path, meta: Meta| -> Result<(), Diagnostic> {
                 // Further match the meta
-                match meta {
+                match meta.clone() {
                     Meta::NameValue(nv) => if nv.path.is_ident("enabled") {
                         // Store the value as an identifier
                         let lit: LitBool = parse_expr_as_bool_lit(nv.value)?;
@@ -217,10 +245,10 @@ pub fn parse_parser(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_
                         field_info.common.parse_ty = parse_expr_as_str_lit_type(nv.value)?;
                         Ok(())
 
-                    } else if nv.path.is_ident("offset") {
-                        // Store the value as the arbitrary expression we got
-                        field_info.common.offset = Some(nv.value);
-                        Ok(())
+                    // } else if nv.path.is_ident("offset") {
+                    //     // Store the value as the arbitrary expression we got
+                    //     field_info.common.offset = Some(nv.value);
+                    //     Ok(())
 
                     } else if nv.path.is_ident("input") {
                         // Store the value as the arbitrary expression we got
@@ -231,57 +259,8 @@ pub fn parse_parser(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_
                         Err(Diagnostic::spanned(nv.path.span(), Level::Error, format!("Unknown `#[bytes(...)]` key/value attribute{}", if let Some(text) = nv.path.span().source_text() { format!(" '{text}'") } else { String::new() })))
                     },
 
-                    // We could recurse here by observing that something is only applicable for parsers/serializers
-                    Meta::List(l) => if l.path.is_ident("from") || l.path.is_ident("parse") || l.path.is_ident("parser") {
-                        parse_attr(attr, |_: Path| -> Result<(), Diagnostic> {
-                            // We can safely ignore
-                            Ok(())
-                        }, |_: &Path, meta: Meta| -> Result<(), Diagnostic> {
-                            // Further match the meta
-                            match meta {
-                                Meta::NameValue(nv) => if nv.path.is_ident("enabled") {
-                                    // Store the value as an identifier
-                                    let lit: LitBool = parse_expr_as_bool_lit(nv.value)?;
-                                    field_info.common.enabled = lit.value();
-                                    Ok(())
-            
-                                } else if nv.path.is_ident("name") {
-                                    // Store the value as an identifier
-                                    let lit: LitStr = parse_expr_as_str_lit(nv.value)?;
-                                    field_info.common.dyn_name = Ident::new(&lit.value(), lit.span());
-                                    Ok(())
-            
-                                } else if nv.path.is_ident("as") {
-                                    // Store the value as a type
-                                    field_info.common.parse_ty = parse_expr_as_str_lit_type(nv.value)?;
-                                    Ok(())
-            
-                                } else if nv.path.is_ident("offset") {
-                                    // Store the value as the arbitrary expression we got
-                                    field_info.common.offset = Some(nv.value);
-                                    Ok(())
-            
-                                } else if nv.path.is_ident("input") {
-                                    // Store the value as the arbitrary expression we got
-                                    field_info.common.input = nv.value;
-                                    Ok(())
-            
-                                } else {
-                                    Err(Diagnostic::spanned(nv.path.span(), Level::Error, format!("Unknown `#[bytes({}(...))]` key/value attribute{}", l.path.span().source_text().unwrap(), if let Some(text) = nv.path.span().source_text() { format!(" '{text}'") } else { String::new() })))
-                                },
-
-                                // The rest is never allowed
-                                Meta::Path(p) => Err(Diagnostic::spanned(p.span(), Level::Error, format!("Unknown `#[bytes({}(...))]` attribute{}", l.path.span().source_text().unwrap(), if let Some(text) = p.span().source_text() { format!(" '{text}'") } else { String::new() }))),
-                                Meta::List(l) => Err(Diagnostic::spanned(l.path.span(), Level::Error, format!("Unknown `#[bytes({}(...))]` list attribute{}", l.path.span().source_text().unwrap(), if let Some(text) = l.path.span().source_text() { format!(" '{text}'") } else { String::new() }))),
-                            }
-                        });
-                        Ok(())
-
-                    } else {
-                        Err(Diagnostic::spanned(l.path.span(), Level::Error, format!("Unknown `#[bytes(...)]` list attribute{}", if let Some(text) = l.path.span().source_text() { format!(" '{text}'") } else { String::new() })))
-                    },
-
                     // Ignored otherwise
+                    Meta::List(l) => Err(Diagnostic::spanned(l.path.span(), Level::Error, format!("Unknown `#[bytes(...)]` list attribute{}", if let Some(text) = l.path.span().source_text() { format!(" '{text}'") } else { String::new() }))),
                     Meta::Path(p) => Err(Diagnostic::spanned(p.span(), Level::Error, format!("Unknown `#[bytes(...)]` attribute{}", if let Some(text) = p.span().source_text() { format!(" '{text}'") } else { String::new() }))),
                 }
             })?;
@@ -293,6 +272,29 @@ pub fn parse_parser(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_
 
     // Alright done!
     Ok(info)
+}
+
+
+
+
+
+/****** LIBRARY *****/
+/// Parses toplevel & field attributes for the [`TryFromBytesDynamic`] macro.
+/// 
+/// # Arguments
+/// - `attrs`: The list of [`Attribute`]s that we will attempt to parse.
+/// - `name`: The name of the struct we're parsing.
+/// - `data`: The [`DataStruct`] that contains the fields we will parse field attributes from.
+/// - `allow_dynamic`: Whether to allow dynamic input to the main struct.
+/// 
+/// # Returns
+/// A [`TryFromBytesDynamicInfo`] that carries the information we parse from the attributes.
+/// 
+/// # Errors
+/// This function errors if we failed to parse attributes in the `#[bytes(...)]` attribute.
+#[inline]
+pub fn parse_parser(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_dynamic: bool) -> Result<TryFromBytesDynamicInfo, Diagnostic> {
+    parse_try_from_bytes_dynamic(true, attrs, name, data, allow_dynamic)
 }
 
 
@@ -313,7 +315,7 @@ pub fn parse_parser(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_
 #[inline]
 pub fn parse_serializer(attrs: Vec<Attribute>, name: Ident, data: DataStruct, allow_dynamic: bool) -> Result<TryToBytesDynamicInfo, Diagnostic> {
     // For now, it's actually exactly the same xZ
-    let info: TryFromBytesDynamicInfo = parse_parser(attrs, name, data, allow_dynamic)?;
+    let info: TryFromBytesDynamicInfo = parse_try_from_bytes_dynamic(false, attrs, name, data, allow_dynamic)?;
     Ok(TryToBytesDynamicInfo {
         metadata : info.metadata,
         fields   : info.fields.into_iter().map(|f| FieldSerializerInfo { common: f.common }).collect(),

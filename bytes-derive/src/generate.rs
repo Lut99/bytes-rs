@@ -4,7 +4,7 @@
 //  Created:
 //    02 Oct 2023, 19:52:06
 //  Last edited:
-//    02 Oct 2023, 20:49:39
+//    04 Oct 2023, 21:56:41
 //  Auto updated?
 //    Yes
 // 
@@ -30,7 +30,7 @@ use crate::spec::{TryFromBytesDynamicInfo, TryToBytesDynamicInfo};
 /// A [`TokenStream2`] that contains the generated tokens.
 pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> TokenStream2 {
     // Generate the implementations for all fields first
-    let mut needs_cursor: bool = false;
+    // let mut needs_cursor: bool = false;
     let mut parse_impls: Vec<TokenStream2> = Vec::with_capacity(info.fields.len());
     let mut self_impls: Vec<TokenStream2> = Vec::with_capacity(info.fields.len());
     for field in info.fields {
@@ -47,19 +47,20 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
             let input_name: &Ident = &info.metadata.input_name;
             let input: Expr = field.common.input;
 
-            // Generate an offset impl, if necessary
-            let offset: Option<TokenStream2> = field.common.offset.map(|offset| {
-                // Mark that we need the cursor
-                needs_cursor = true;
+            // // Generate an offset impl, if necessary
+            // let offset: Option<TokenStream2> = field.common.offset.map(|offset| {
+            //     // Mark that we need the cursor
+            //     needs_cursor = true;
 
-                // Generate the moving part
-                quote! {
-                    // Offset the input
-                    if let ::std::result::Result::Err(err) = <::std::io::Cursor<_> as ::std::io::Seek>::seek(::std::io::SeekFrom::Start(#offset)) {
-                        return ::std::result::Result::Err(::bytes::from_bytes::Error::Seek { err });
-                    }
-                }
-            });
+            //     // Generate the moving part
+            //     quote! {
+            //         // Offset the input
+            //         if let ::std::result::Result::Err(err) = <::std::io::Cursor<_> as ::std::io::Seek>::seek(::std::io::SeekFrom::Start(#offset)) {
+            //             return ::std::result::Result::Err(::bytes::from_bytes::Error::Seek { err });
+            //         }
+            //     }
+            // });
+            let offset: Option<TokenStream2> = None;
 
             // Generate the parser code...
             parse_impls.push(quote! {
@@ -92,21 +93,22 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
     let dynamic_name: Ident = info.metadata.dynamic_name;
     let dynamic_ty: Type = info.metadata.dynamic_ty.0;
 
-    // Generate wrapping the reader in a cursor
-    let cursor: Option<TokenStream2> = if needs_cursor {
-        Some(quote! {
-            // Wrap the input in a cursor so we can offset
-            let mut #input_name: ::std::io::Cursor<_> = ::std::io::Cursor::new(#input_name);
-        })
-    } else {
-        None
-    };
+    // // Generate wrapping the reader in a cursor
+    // let cursor: Option<TokenStream2> = if needs_cursor {
+    //     Some(quote! {
+    //         // Wrap the input in a cursor so we can offset
+    //         let mut #input_name: ::std::io::Cursor<_> = ::std::io::Cursor::new(#input_name);
+    //     })
+    // } else {
+    //     None
+    // };
+    let cursor: Option<TokenStream2> = None;
 
     // Next, generate the main implementation
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let parser_impl: TokenStream2 = quote! {
         #[automatically_derived]
-        impl #impl_generics TryFromBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
+        impl #impl_generics ::bytes::from_bytes::TryFromBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
             type Error = ::bytes::from_bytes::Error;
 
             fn try_from_bytes_dynamic(#dynamic_name: #dynamic_ty, mut #input_name: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
@@ -139,7 +141,7 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
 /// A [`TokenStream2`] that contains the generated tokens.
 pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> TokenStream2 {
     // Generate the implementations for all fields first
-    let mut needs_cursor: bool = false;
+    // let mut needs_cursor: bool = false;
     let mut self_impls: Vec<TokenStream2> = Vec::with_capacity(info.fields.len());
     let mut serialize_impls: Vec<TokenStream2> = Vec::with_capacity(info.fields.len());
     for field in info.fields {
@@ -159,26 +161,27 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
         let input_name: &Ident = &info.metadata.input_name;
         let input: Expr = field.common.input;
 
-        // Generate an offset impl, if necessary
-        let offset: Option<TokenStream2> = field.common.offset.map(|offset| {
-            // Mark that we need the cursor
-            needs_cursor = true;
+        // // Generate an offset impl, if necessary
+        // let offset: Option<TokenStream2> = field.common.offset.map(|offset| {
+        //     // Mark that we need the cursor
+        //     needs_cursor = true;
 
-            // Generate the moving part
-            quote! {
-                // Offset the input
-                if let ::std::result::Result::Err(err) = <::std::io::Cursor<_> as ::std::io::Seek>::seek(::std::io::SeekFrom::Start(#offset)) {
-                    return ::std::result::Result::Err(::bytes::to_bytes::Error::Seek { err });
-                }
-            }
-        });
+        //     // Generate the moving part
+        //     quote! {
+        //         // Offset the input
+        //         if let ::std::result::Result::Err(err) = <::std::io::Cursor<_> as ::std::io::Seek>::seek(::std::io::SeekFrom::Start(#offset)) {
+        //             return ::std::result::Result::Err(::bytes::to_bytes::Error::Seek { err });
+        //         }
+        //     }
+        // });
+        let offset: Option<TokenStream2> = None;
 
         // Generate the parser code...
         serialize_impls.push(quote! {
             #offset
 
             // Attempt to serialize using the dynamic type
-            if let ::std::result::Result::Err(err) = <#real_ty as ::bytes::to_bytes::TryToBytesDynamic<_>>::try_to_bytes_dynamic(self, #input, &mut #input_name) {
+            if let ::std::result::Result::Err(err) = <#real_ty as ::bytes::to_bytes::TryToBytesDynamic<_>>::try_to_bytes_dynamic(#dyn_name, #input, &mut #input_name) {
                 return ::std::result::Result::Err(::bytes::to_bytes::Error::Field { name: #real_name_str.into(), err: ::std::boxed::Box::new(err) });
             }
         });
@@ -190,21 +193,22 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
     let dynamic_name: Ident = info.metadata.dynamic_name;
     let dynamic_ty: Type = info.metadata.dynamic_ty.0;
 
-    // Generate wrapping the reader in a cursor
-    let cursor: Option<TokenStream2> = if needs_cursor {
-        Some(quote! {
-            // Wrap the input in a cursor so we can offset
-            let mut #input_name: ::std::io::Cursor<_> = ::std::io::Cursor::new(#input_name);
-        })
-    } else {
-        None
-    };
+    // // Generate wrapping the reader in a cursor
+    // let cursor: Option<TokenStream2> = if needs_cursor {
+    //     Some(quote! {
+    //         // Wrap the input in a cursor so we can offset
+    //         let mut #input_name: ::std::io::Cursor<_> = ::std::io::Cursor::new(#input_name);
+    //     })
+    // } else {
+    //     None
+    // };
+    let cursor: Option<TokenStream2> = None;
 
     // Next, generate the main implementation
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let parser_impl: TokenStream2 = quote! {
         #[automatically_derived]
-        impl #impl_generics TryToBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
+        impl #impl_generics ::bytes::to_bytes::TryToBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
             type Error = ::bytes::to_bytes::Error;
 
             fn try_to_bytes_dynamic(&self, #dynamic_name: #dynamic_ty, mut #input_name: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {

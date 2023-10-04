@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 13:44:24
 //  Last edited:
-//    21 Sep 2023, 13:40:08
+//    04 Oct 2023, 21:49:08
 //  Auto updated?
 //    Yes
 // 
@@ -19,10 +19,10 @@ use bytes::{BigEndian, LittleEndian, TryFromBytes};
 #[derive(TryFromBytes)]
 struct Numbers {
     /// Some number that will be parsed in big-endian format.
-    #[bytes(dynamic = BigEndian)]
+    #[bytes(input = BigEndian)]
     first  : u32,
     /// Some smaller number that will be parsed in little-endian format.
-    #[bytes(dynamic = LittleEndian)]
+    #[bytes(input = LittleEndian)]
     second : u16,
 }
 
