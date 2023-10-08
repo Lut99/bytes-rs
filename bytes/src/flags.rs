@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    04 Oct 2023, 23:01:36
+//    08 Oct 2023, 11:41:29
 //  Auto updated?
 //    Yes
 // 
@@ -61,7 +61,7 @@ use crate::to_bytes::TryToBytesDynamic;
 ///     }
 /// }
 /// 
-/// let flags: TestFlags = TestFlags::try_from_bytes(&[ 0b10100000 ][..]).unwrap();
+/// let flags: SparseFlags = SparseFlags::try_from_bytes(&[ 0b10100000 ][..]).unwrap();
 /// assert_eq!(flags.flag1, true);
 /// assert_eq!(flags.flag2, true);
 /// ```
@@ -161,7 +161,27 @@ macro_rules! flags {
 /// 
 /// # Example
 /// ```rust
-/// todo!();
+/// use bytes::{Flags, TryFromBytes as _, TryToBytes as _};
+/// 
+/// assert_eq!(Flags::<3>::try_from_bytes(&[ 0b10100110 ][..]).unwrap(), Flags([ true, false, true ]));
+/// assert_eq!(Flags::<8>::try_from_bytes(&[ 0b10100110 ][..]).unwrap(), Flags([ true, false, true, false, false, true, true, false ]));
+/// assert_eq!(Flags::<12>::try_from_bytes(&[ 0b10100110, 0b00010000 ][..]).unwrap(), Flags([ true, false, true, false, false, true, true, false, false, false, false, true ]));
+/// assert!(matches!(Flags::<12>::try_from_bytes(&[ 0b10100110 ][..]), Err(bytes::from_bytes::Error::Read { .. })));
+/// 
+/// let mut output: [u8; 1] = [0; 1];
+/// assert!(Flags([true, false, true]).try_to_bytes(&mut output[..]).is_ok());
+/// assert_eq!(output, [ 0b10100000 ]);
+/// 
+/// let mut output: [u8; 1] = [0; 1];
+/// assert!(Flags([true, false, true, false, false, true, true, false]).try_to_bytes(&mut output[..]).is_ok());
+/// assert_eq!(output, [ 0b10100110 ]);
+/// 
+/// let mut output: [u8; 2] = [0; 2];
+/// assert!(Flags([true, false, true, false, false, true, true, false, false, false, false, true ]).try_to_bytes(&mut output[..]).is_ok());
+/// assert_eq!(output, [ 0b10100110, 0b00010000 ]);
+/// 
+/// let mut output: [u8; 1] = [0; 1];
+/// assert!(matches!(Flags([true, false, true, false, false, true, true, false, false, false, false, true ]).try_to_bytes(&mut output[..]), Err(bytes::to_bytes::Error::Write { .. })));
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Flags<const N: usize>(pub [bool; N]);

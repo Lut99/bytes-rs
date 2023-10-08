@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    02 Oct 2023, 20:15:49
+//    08 Oct 2023, 12:34:50
 //  Auto updated?
 //    Yes
 // 
@@ -21,6 +21,198 @@ use crate::order::{BigEndian, Endianness, LittleEndian};
 use crate::string::{Lossiness, Lossy, NonLossy};
 
 
+/***** HELPER MACROS *****/
+/// Translates a list of types into a list of unit-types.
+macro_rules! unitify {
+    // Trivial base-case
+    ($fty:ty) => { () };
+    // Recursive case
+    ($fty:ty, $($tys:ty),+) => { (), unitify!($($tys),+) };
+}
+
+/// Implements [`TryFromBytesDynamic`] for a tuple of the given size.
+/// 
+/// The size is denoted as a pair of typenames, .e.g,
+/// ```ignore
+/// // Implements for a tuple of length three
+/// try_from_bytes_dynamic_tuple_impl!(T1, T2, T3);
+/// ```
+macro_rules! try_from_bytes_dynamic_tuple_impl {
+    // Case for empty tuple (unit type)
+    () => {
+        impl TryFromBytesDynamic<()> for () {
+            type Error = std::convert::Infallible;
+        
+            /// Dummy parser that parses nothing.
+            /// 
+            /// # Arguments
+            /// - `input`: Nothing is configurable about this parsing.
+            /// - `reader`: A [`Read`]er which we don't touch.
+            /// 
+            /// # Returns
+            /// A new instance of `()`, i.e., nothing.
+            /// 
+            /// # Errors
+            /// This function does not error (hence the return type is [`Infallible`](std::convert::Infallible)).
+            /// 
+            /// # Example
+            /// ```rust
+            /// todo!();
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(_input: (), _reader: impl Read) -> Result<Self, Self::Error> {
+                Ok(())
+            }
+        }
+        impl TryFromBytesDynamic<usize> for () {
+            type Error = Error;
+        
+            /// Simply moves the reader forward by the given number of bytes but does not parse anything.
+            /// 
+            /// This can be used to represent reserved or ignored areas in a header.
+            /// 
+            /// # Arguments
+            /// - `input`: The number of bytes to skip.
+            /// - `reader`: The [`Read`]er to skip bytes in.
+            /// 
+            /// # Returns
+            /// A new instance of `()`, i.e., nothing.
+            /// 
+            /// # Errors
+            /// This function may error if the given reader failed to skip.
+            /// 
+            /// # Example
+            /// ```rust
+            /// todo!();
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: usize, mut reader: impl Read) -> Result<Self, Self::Error> {
+                // Attempt to parse & discard
+                match reader.read_exact(&mut vec![ 0; input ]) {
+                    Ok(_)    => Ok(()),
+                    Err(err) => Err(Error::Read { err }),
+                }
+            }
+        }        
+    };
+
+    // Case for a single-element tuple
+    (($fty:ident, $fin:ident, $ffi:tt)) => {
+        impl<$fty: TryFromBytesDynamic<$fin>, $fin> TryFromBytesDynamic<$fin> for ($fty,)
+        where
+            $fty::Error: 'static,
+        {
+            type Error = Error;
+        
+            /// Parses a tuple wrapped in a tuple with one element.
+            /// 
+            /// This is useful for... completeness reasons?
+            /// 
+            /// # Arguments
+            /// - `input`: The input to the inner parser.
+            /// - `reader`: The reader where the inner parser will gets its bytes from.
+            /// 
+            /// # Returns
+            /// A new instance of the inner type, wrapped in a tuple.
+            /// 
+            /// # Errors
+            /// This function errors whenever the child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+            /// 
+            /// # Example
+            /// ```rust
+            /// todo!();
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: $fin, reader: impl Read) -> Result<Self, Self::Error> {
+                match $fty::try_from_bytes_dynamic(input, reader) {
+                    Ok(inner) => Ok((inner,)),
+                    Err(err)  => Err(Error::Field { name: stringify!($ffi).into(), err: Box::new(err) }),
+                }
+            }
+        }        
+    };
+
+    // Case for more than one tuple
+    (($fty:ident, $fin:ident, $ffi:tt), $(($tys:ident, $ins:ident, $fis:tt)),+) => {
+        impl<$fty: TryFromBytesDynamic<()>, $($tys: TryFromBytesDynamic<()>),+> TryFromBytesDynamic<()> for ($fty, $($tys),+)
+        where
+            $fty::Error: 'static,
+            $($tys::Error: 'static),+
+        {
+            type Error = Error;
+
+            /// Parses that allows a tuple of [`TryFromBytes`]es to be [`TryFromBytes`] itself.
+            /// 
+            /// Specifically, just allows a single empty input to be given if all the sub-parsers only require empty inputs.
+            ///
+            /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
+            /// 
+            /// # Arguments
+            /// - `input`: The input to pass to the sub-parsers, or rather, which indicates no input is necessary.
+            /// - `reader`: The reader where the inner parsers will gets their bytes from.
+            /// 
+            /// # Returns
+            /// A tuple with parsed instances of all the inner types.
+            /// 
+            /// # Errors
+            /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+            /// 
+            /// # Example
+            /// ```rust
+            /// todo!();
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(_input: (), reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(((), $(unitify!($tys)),+), reader)
+            }
+        }
+        impl<$fty: TryFromBytesDynamic<$fin>, $($tys: TryFromBytesDynamic<$ins>),+, $fin, $($ins),+> TryFromBytesDynamic<($fin, $($ins),+)> for ($fty, $($tys),+)
+        where
+            $fty::Error: 'static,
+            $($tys::Error: 'static),+
+        {
+            type Error = Error;
+
+            /// Parses a tuple of nested TryFromBytesDynamic types.
+            ///
+            /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
+            /// 
+            /// # Arguments
+            /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
+            /// - `reader`: The reader where the inner parsers will gets their bytes from.
+            /// 
+            /// # Returns
+            /// A tuple with parsed instances of all the inner types.
+            /// 
+            /// # Errors
+            /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+            /// 
+            /// # Example
+            /// ```rust
+            /// todo!();
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: ($fin, $($ins),+), mut reader: impl Read) -> Result<Self, Self::Error> {
+                // Simply parse the fields one after another
+                Ok((
+                    match $fty::try_from_bytes_dynamic(input.$ffi, &mut reader) {
+                        Ok(inner) => inner,
+                        Err(err)  => { return Err(Error::Field { name: stringify!($ffi).into(), err: Box::new(err) }); },
+                    },
+                    $(match $tys::try_from_bytes_dynamic(input.$fis, &mut reader) {
+                        Ok(inner) => inner,
+                        Err(err)  => { return Err(Error::Field { name: stringify!($fis).into(), err: Box::new(err) }); },
+                    }),+
+                ))
+            }
+        }
+    };
+}
+
+
+
+
+
 /***** ERRORS *****/
 /// Defines errors that may occur when using library parsers.
 /// 
@@ -30,24 +222,20 @@ use crate::string::{Lossiness, Lossy, NonLossy};
 pub enum Error {
     /// Couldn't read from the given reader.
     /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    Read { err: std::io::Error },
-    /// Couldn't seek the given input.
+    /// This typically happens when there aren't enough bytes left to read, or if the underlying stream calls some error (e.g., when directly reading files).
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryFromBytes as _;
+    /// 
+    /// assert!(matches!(u8::try_from_bytes(&[][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
-    Seek { err: std::io::Error },
+    Read { err: std::io::Error },
     /// A sub-parser of a field failed.
     /// 
     /// # Example
     /// ```rust
     /// use bytes::TryFromBytes;
-    /// use bytes::errors::ParseError;
     /// 
     /// #[derive(TryFromBytes)]
     /// struct Example {
@@ -55,7 +243,7 @@ pub enum Error {
     ///     field_1 : u32
     /// }
     /// 
-    /// assert!(matches!(Example::try_from_bytes(&[]), Err(ParseError::Field{ .. })));
+    /// assert!(matches!(Example::try_from_bytes(&[][..]), Err(bytes::from_bytes::Error::Field{ .. })));
     /// ```
     Field { name: String, err: Box<dyn error::Error> },
 
@@ -64,9 +252,8 @@ pub enum Error {
     /// # Example
     /// ```rust
     /// use bytes::TryFromBytes as _;
-    /// use bytes::errors::ParseError;
     /// 
-    /// assert!(matches!(char::try_from_bytes(&[ 0x00, 0x00, 0x00, 0xFF ]), Err(ParseError::NonUtf8Char { .. })));
+    /// assert!(matches!(char::try_from_bytes(&[ 0x00, 0x00, 0x00, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     NonUtf8Char { raw: u32 },
     /// Given byte string was not valid UTF-8.
@@ -74,9 +261,8 @@ pub enum Error {
     /// # Example
     /// ```rust
     /// use bytes::TryFromBytesDynamic as _;
-    /// use bytes::errors::ParseError;
     /// 
-    /// assert!(matches!(String::try_from_bytes_dynamic(4, &[ 0x00, 0x00, 0x00, 0xFF ]), Err(ParseError::NonUtf8String { .. })));
+    /// assert!(matches!(String::try_from_bytes_dynamic(4, &[ 0x00, 0x00, 0x00, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
     /// ```
     NonUtf8String { err: std::string::FromUtf8Error },
 }
@@ -85,7 +271,6 @@ impl Display for Error {
         use Error::*;
         match self {
             Read { .. }        => write!(f, "Failed to read from given reader"),
-            Seek { .. }        => write!(f, "Faield to seek given reader"),
             Field { name, .. } => write!(f, "Failed to parse field '{name}'"),
 
             NonUtf8Char { raw }  => write!(f, "Byte '{raw:#010X}' is not a valid UTF-8 character"),
@@ -98,7 +283,6 @@ impl error::Error for Error {
         use Error::*;
         match self {
             Read { err }      => Some(err),
-            Seek { err }      => Some(err),
             Field { err, .. } => Some(&**err),
 
             NonUtf8Char { .. }    => None,
@@ -143,25 +327,26 @@ impl PrimitiveFromBytes for f64 {}
 /// 
 /// # Example
 /// ```rust
+/// # use std::io::Read;
 /// use bytes::{TryFromBytes as _, TryFromBytesDynamic};
 /// 
 /// struct Example {
 ///     num : u16,
 /// }
 /// impl TryFromBytesDynamic<()> for Example {
-///     type Error = bytes::errors::ParseError;
+///     type Error = bytes::from_bytes::Error;
 /// 
 ///     #[inline]
-///     fn try_from_bytes_dynamic(input: (), bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+///     fn try_from_bytes_dynamic(input: (), reader: impl Read) -> Result<Self, Self::Error> {
 ///         Ok(Self {
-///             num : u16::try_from_bytes_dynamic(input, bytes)?,
+///             num : u16::try_from_bytes_dynamic(input, reader)?,
 ///         })
 ///     }
 /// }
 /// 
-/// assert_eq!(Example::try_from_bytes_dynamic((), &[ 0x00, 0x2A ]).unwrap().num, 10752);
+/// assert_eq!(Example::try_from_bytes_dynamic((), &[ 0x00, 0x2A ][..]).unwrap().num, 10752);
 /// // Equivalent and more convenient
-/// assert_eq!(Example::try_from_bytes(&[ 0x00, 0x2A ]).unwrap().num, 10752);
+/// assert_eq!(Example::try_from_bytes(&[ 0x00, 0x2A ][..]).unwrap().num, 10752);
 /// ```
 pub trait TryFromBytes: TryFromBytesDynamic<()> {
     /// Attempts to parse ourselves from the given bytes.
@@ -179,11 +364,11 @@ pub trait TryFromBytes: TryFromBytesDynamic<()> {
     /// ```rust
     /// use bytes::TryFromBytes as _;
     /// 
-    /// assert_eq!(u8::try_from_bytes(&[ 0x2A ]).unwrap(), 42);
-    /// assert_eq!(i16::try_from_bytes(&[ 0x2A, 0x00 ]).unwrap(), 42);
-    /// assert_eq!(<(u8, u8)>::try_from_bytes(&[ 0x00, 0x2A ]).unwrap(), (0, 42));
+    /// assert_eq!(u8::try_from_bytes(&[ 0x2A ][..]).unwrap(), 42);
+    /// assert_eq!(i16::try_from_bytes(&[ 0x2A, 0x00 ][..]).unwrap(), 42);
+    /// assert_eq!(<(u8, u8)>::try_from_bytes(&[ 0x00, 0x2A ][..]).unwrap(), (0, 42));
     /// ```
-    fn try_from_bytes(bytes: impl Read) -> Result<Self, Self::Error>;
+    fn try_from_bytes(reader: impl Read) -> Result<Self, Self::Error>;
 }
 impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
     /// Automatic implementation of `TryFromBytes` for [`TryFromBytesDynamic`]'s that take no input (`()`).
@@ -206,16 +391,17 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 /// 
 /// # Example
 /// ```rust
+/// # use std::io::Read;
 /// use bytes::TryFromBytesDynamic;
 /// 
 /// struct Example {
 ///     num : u16,
 /// }
 /// impl TryFromBytesDynamic<Option<u16>> for Example {
-///     type Error = bytes::errors::ParseError;
+///     type Error = bytes::from_bytes::Error;
 /// 
 ///     #[inline]
-///     fn try_from_bytes_dynamic(input: Option<u16>, bytes: impl AsRef<[u8]>) -> Result<Self, Self::Error> {
+///     fn try_from_bytes_dynamic(input: Option<u16>, bytes: impl Read) -> Result<Self, Self::Error> {
 ///         if let Some(input) = input {
 ///             Ok(Self {
 ///                 num : input,
@@ -228,8 +414,8 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 ///     }
 /// }
 /// 
-/// assert_eq!(Example::try_from_bytes_dynamic(Some(42), &[ 0x00, 0x2A ]).unwrap().num, 42);
-/// assert_eq!(Example::try_from_bytes_dynamic(None, &[ 0x00, 0x2A ]).unwrap().num, 10752);
+/// assert_eq!(Example::try_from_bytes_dynamic(Some(100), &[ 0x00, 0x2A ][..]).unwrap().num, 100);
+/// assert_eq!(Example::try_from_bytes_dynamic(None, &[ 0x00, 0x2A ][..]).unwrap().num, 10752);
 /// ```
 pub trait TryFromBytesDynamic<I>: Sized {
     /// Determines what errors this trait's functions may throw.
@@ -252,9 +438,9 @@ pub trait TryFromBytesDynamic<I>: Sized {
     /// ```rust
     /// use bytes::{BigEndian, LittleEndian, TryFromBytesDynamic as _};
     /// 
-    /// assert_eq!(i16::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0xFF ]).unwrap(), 255);
-    /// assert_eq!(i16::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0xFF ]).unwrap(), -256);
-    /// assert_eq!(String::try_from_bytes_dynamic(13, &[ 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).unwrap(), "Hello, world!");
+    /// assert_eq!(i16::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0xFF ][..]).unwrap(), 255);
+    /// assert_eq!(i16::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0xFF ][..]).unwrap(), -256);
+    /// assert_eq!(String::try_from_bytes_dynamic(13, &[ 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
     /// ```
     fn try_from_bytes_dynamic(input: I, reader: impl Read) -> Result<Self, Self::Error>;
 }
@@ -277,7 +463,13 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// // This parses with native endianness, so we test based on which endianness is used
+    /// #[cfg(target_endian = "big")]
+    /// assert_eq!(u16::try_from_bytes_dynamic((), &[ 0x00, 0x2A ][..]).unwrap(), 42);
+    /// #[cfg(target_endian = "little")]
+    /// assert_eq!(u16::try_from_bytes_dynamic((), &[ 0x00, 0x2A ][..]).unwrap(), 10752);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(_input: (), mut reader: impl Read) -> Result<Self, Self::Error> {
@@ -308,7 +500,14 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Endianness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], endianness: Endianness) -> u16 {
+    ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x00, 0x2A ], Endianness::Big), 42);
+    /// assert_eq!(parse(&[ 0x00, 0x2A ], Endianness::Little), 10752);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -336,7 +535,14 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Endianness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], endianness: &Endianness) -> u16 {
+    ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x00, 0x2A ], &Endianness::Big), 42);
+    /// assert_eq!(parse(&[ 0x00, 0x2A ], &Endianness::Little), 10752);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &Endianness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -360,7 +566,14 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Endianness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], endianness: &mut Endianness) -> u16 {
+    ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x00, 0x2A ], &mut Endianness::Big), 42);
+    /// assert_eq!(parse(&[ 0x00, 0x2A ], &mut Endianness::Little), 10752);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut Endianness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -832,477 +1045,15 @@ impl TryFromBytesDynamic<&mut LittleEndian> for char {
 }
 
 // Implement it for tightly-packed containers
-impl TryFromBytesDynamic<()> for () {
-    type Error = std::convert::Infallible;
-
-    /// Dummy parser that parses nothing.
-    /// 
-    /// # Arguments
-    /// - `input`: Nothing is configurable about this parsing.
-    /// - `reader`: A [`Read`]er which we don't touch.
-    /// 
-    /// # Returns
-    /// A new instance of `()`, i.e., nothing.
-    /// 
-    /// # Errors
-    /// This function does not error (hence the return type is [`Infallible`](std::convert::Infallible)).
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(_input: (), _reader: impl Read) -> Result<Self, Self::Error> {
-        Ok(())
-    }
-}
-impl TryFromBytesDynamic<usize> for () {
-    type Error = Error;
-
-    /// Simply moves the reader forward by the given number of bytes but does not parse anything.
-    /// 
-    /// This can be used to represent reserved or ignored areas in a header.
-    /// 
-    /// # Arguments
-    /// - `input`: The number of bytes to skip.
-    /// - `reader`: The [`Read`]er to skip bytes in.
-    /// 
-    /// # Returns
-    /// A new instance of `()`, i.e., nothing.
-    /// 
-    /// # Errors
-    /// This function may error if the given reader failed to skip.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: usize, mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Attempt to parse & discard
-        match reader.read_exact(&mut vec![ 0; input ]) {
-            Ok(_)    => Ok(()),
-            Err(err) => Err(Error::Read { err }),
-        }
-    }
-}
-impl<T: TryFromBytesDynamic<I>, I> TryFromBytesDynamic<I> for (T,)
-where
-    T::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple wrapped in a tuple with one element.
-    /// 
-    /// This is useful for... completeness reasons?
-    /// 
-    /// # Arguments
-    /// - `input`: The input to the inner parser.
-    /// - `reader`: The reader where the inner parser will gets its bytes from.
-    /// 
-    /// # Returns
-    /// A new instance of the inner type, wrapped in a tuple.
-    /// 
-    /// # Errors
-    /// This function errors whenever the child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: I, reader: impl Read) -> Result<Self, Self::Error> {
-        match T::try_from_bytes_dynamic(input, reader) {
-            Ok(inner) => Ok((inner,)),
-            Err(err)  => Err(Error::Field { name: "0".into(), err: Box::new(err) }),
-        }
-    }
-}
-impl<T1: TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, I1, I2> TryFromBytesDynamic<(I1, I2)> for (T1, T2)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple of nested TryFromBytesDynamic types.
-    ///
-    /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
-    /// - `reader`: The reader where the inner parsers will gets their bytes from.
-    /// 
-    /// # Returns
-    /// A tuple with parsed instances of all the inner types.
-    /// 
-    /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: (I1, I2), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Simply parse the fields one after another
-        Ok((
-            match T1::try_from_bytes_dynamic(input.0, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "0".into(), err: Box::new(err) }); },
-            },
-            match T2::try_from_bytes_dynamic(input.1, reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "1".into(), err: Box::new(err) }); },
-            },
-        ))
-    }
-}
-impl<T1: TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, T3: TryFromBytesDynamic<I3>, I1, I2, I3> TryFromBytesDynamic<(I1, I2, I3)> for (T1, T2, T3)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple of nested TryFromBytesDynamic types.
-    ///
-    /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
-    /// - `reader`: The reader where the inner parsers will gets their bytes from.
-    /// 
-    /// # Returns
-    /// A tuple with parsed instances of all the inner types.
-    /// 
-    /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: (I1, I2, I3), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Simply parse the fields one after another
-        Ok((
-            match T1::try_from_bytes_dynamic(input.0, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "0".into(), err: Box::new(err) }); },
-            },
-            match T2::try_from_bytes_dynamic(input.1, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "1".into(), err: Box::new(err) }); },
-            },
-            match T3::try_from_bytes_dynamic(input.2, reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "2".into(), err: Box::new(err) }); },
-            },
-        ))
-    }
-}
-impl<T1: TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, T3: TryFromBytesDynamic<I3>, T4: TryFromBytesDynamic<I4>, I1, I2, I3, I4> TryFromBytesDynamic<(I1, I2, I3, I4)> for (T1, T2, T3, T4)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple of nested TryFromBytesDynamic types.
-    ///
-    /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
-    /// - `reader`: The reader where the inner parsers will gets their bytes from.
-    /// 
-    /// # Returns
-    /// A tuple with parsed instances of all the inner types.
-    /// 
-    /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Simply parse the fields one after another
-        Ok((
-            match T1::try_from_bytes_dynamic(input.0, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "0".into(), err: Box::new(err) }); },
-            },
-            match T2::try_from_bytes_dynamic(input.1, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "1".into(), err: Box::new(err) }); },
-            },
-            match T3::try_from_bytes_dynamic(input.2, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "2".into(), err: Box::new(err) }); },
-            },
-            match T4::try_from_bytes_dynamic(input.3, reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "3".into(), err: Box::new(err) }); },
-            },
-        ))
-    }
-}
-impl<T1: TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, T3: TryFromBytesDynamic<I3>, T4: TryFromBytesDynamic<I4>, T5: TryFromBytesDynamic<I5>, I1, I2, I3, I4, I5> TryFromBytesDynamic<(I1, I2, I3, I4, I5)> for (T1, T2, T3, T4, T5)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple of nested TryFromBytesDynamic types.
-    ///
-    /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
-    /// - `reader`: The reader where the inner parsers will gets their bytes from.
-    /// 
-    /// # Returns
-    /// A tuple with parsed instances of all the inner types.
-    /// 
-    /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4, I5), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Simply parse the fields one after another
-        Ok((
-            match T1::try_from_bytes_dynamic(input.0, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "0".into(), err: Box::new(err) }); },
-            },
-            match T2::try_from_bytes_dynamic(input.1, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "1".into(), err: Box::new(err) }); },
-            },
-            match T3::try_from_bytes_dynamic(input.2, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "2".into(), err: Box::new(err) }); },
-            },
-            match T4::try_from_bytes_dynamic(input.3, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "3".into(), err: Box::new(err) }); },
-            },
-            match T5::try_from_bytes_dynamic(input.4, reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "4".into(), err: Box::new(err) }); },
-            },
-        ))
-    }
-}
-impl<T1: TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, T3: TryFromBytesDynamic<I3>, T4: TryFromBytesDynamic<I4>, T5: TryFromBytesDynamic<I5>, T6: TryFromBytesDynamic<I6>, I1, I2, I3, I4, I5, I6> TryFromBytesDynamic<(I1, I2, I3, I4, I5, I6)> for (T1, T2, T3, T4, T5, T6)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-    T6::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple of nested TryFromBytesDynamic types.
-    ///
-    /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
-    /// - `reader`: The reader where the inner parsers will gets their bytes from.
-    /// 
-    /// # Returns
-    /// A tuple with parsed instances of all the inner types.
-    /// 
-    /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4, I5, I6), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Simply parse the fields one after another
-        Ok((
-            match T1::try_from_bytes_dynamic(input.0, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "0".into(), err: Box::new(err) }); },
-            },
-            match T2::try_from_bytes_dynamic(input.1, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "1".into(), err: Box::new(err) }); },
-            },
-            match T3::try_from_bytes_dynamic(input.2, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "2".into(), err: Box::new(err) }); },
-            },
-            match T4::try_from_bytes_dynamic(input.3, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "3".into(), err: Box::new(err) }); },
-            },
-            match T5::try_from_bytes_dynamic(input.4, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "4".into(), err: Box::new(err) }); },
-            },
-            match T6::try_from_bytes_dynamic(input.5, reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "5".into(), err: Box::new(err) }); },
-            },
-        ))
-    }
-}
-impl<T1: TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, T3: TryFromBytesDynamic<I3>, T4: TryFromBytesDynamic<I4>, T5: TryFromBytesDynamic<I5>, T6: TryFromBytesDynamic<I6>, T7: TryFromBytesDynamic<I7>, I1, I2, I3, I4, I5, I6, I7> TryFromBytesDynamic<(I1, I2, I3, I4, I5, I6, I7)> for (T1, T2, T3, T4, T5, T6, T7)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-    T6::Error: 'static,
-    T7::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple of nested TryFromBytesDynamic types.
-    ///
-    /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
-    /// - `reader`: The reader where the inner parsers will gets their bytes from.
-    /// 
-    /// # Returns
-    /// A tuple with parsed instances of all the inner types.
-    /// 
-    /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4, I5, I6, I7), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Simply parse the fields one after another
-        Ok((
-            match T1::try_from_bytes_dynamic(input.0, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "0".into(), err: Box::new(err) }); },
-            },
-            match T2::try_from_bytes_dynamic(input.1, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "1".into(), err: Box::new(err) }); },
-            },
-            match T3::try_from_bytes_dynamic(input.2, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "2".into(), err: Box::new(err) }); },
-            },
-            match T4::try_from_bytes_dynamic(input.3, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "3".into(), err: Box::new(err) }); },
-            },
-            match T5::try_from_bytes_dynamic(input.4, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "4".into(), err: Box::new(err) }); },
-            },
-            match T6::try_from_bytes_dynamic(input.5, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "5".into(), err: Box::new(err) }); },
-            },
-            match T7::try_from_bytes_dynamic(input.6, reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "6".into(), err: Box::new(err) }); },
-            },
-        ))
-    }
-}
-impl<T1: TryFromBytesDynamic<I1>, T2: TryFromBytesDynamic<I2>, T3: TryFromBytesDynamic<I3>, T4: TryFromBytesDynamic<I4>, T5: TryFromBytesDynamic<I5>, T6: TryFromBytesDynamic<I6>, T7: TryFromBytesDynamic<I7>, T8: TryFromBytesDynamic<I8>, I1, I2, I3, I4, I5, I6, I7, I8> TryFromBytesDynamic<(I1, I2, I3, I4, I5, I6, I7, I8)> for (T1, T2, T3, T4, T5, T6, T7, T8)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-    T6::Error: 'static,
-    T7::Error: 'static,
-    T8::Error: 'static,
-{
-    type Error = Error;
-
-    /// Parses a tuple of nested TryFromBytesDynamic types.
-    ///
-    /// This parser assumes the nested types are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using the [`TryFromBytesDynamic<usize>`] overload of `()`.
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple of inputs to the inner parsers. These are passed in order, one-to-one.
-    /// - `reader`: The reader where the inner parsers will gets their bytes from.
-    /// 
-    /// # Returns
-    /// A tuple with parsed instances of all the inner types.
-    /// 
-    /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: (I1, I2, I3, I4, I5, I6, I7, I8), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Simply parse the fields one after another
-        Ok((
-            match T1::try_from_bytes_dynamic(input.0, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "0".into(), err: Box::new(err) }); },
-            },
-            match T2::try_from_bytes_dynamic(input.1, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "1".into(), err: Box::new(err) }); },
-            },
-            match T3::try_from_bytes_dynamic(input.2, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "2".into(), err: Box::new(err) }); },
-            },
-            match T4::try_from_bytes_dynamic(input.3, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "3".into(), err: Box::new(err) }); },
-            },
-            match T5::try_from_bytes_dynamic(input.4, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "4".into(), err: Box::new(err) }); },
-            },
-            match T6::try_from_bytes_dynamic(input.5, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "5".into(), err: Box::new(err) }); },
-            },
-            match T7::try_from_bytes_dynamic(input.6, &mut reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "6".into(), err: Box::new(err) }); },
-            },
-            match T8::try_from_bytes_dynamic(input.7, reader) {
-                Ok(inner) => inner,
-                Err(err)  => { return Err(Error::Field { name: "7".into(), err: Box::new(err) }); },
-            },
-        ))
-    }
-}
+try_from_bytes_dynamic_tuple_impl!();
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0));
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1));
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2));
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3));
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4));
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4), (T6, I6, 5));
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4), (T6, I6, 5), (T7, I7, 6));
+try_from_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4), (T6, I6, 5), (T7, I7, 6), (T8, I8, 7));
 impl<const LEN: usize, T: for<'a> TryFromBytesDynamic<&'a I>, I: AsRef<I>> TryFromBytesDynamic<I> for [ T; LEN ]
 where
     for<'a> <T as TryFromBytesDynamic<&'a I>>::Error: 'static,
@@ -1865,7 +1616,10 @@ impl TryFromBytesDynamic<NonLossy> for String {
         }
 
         // Now simply parse the bytes as a string
-        Ok(String::from_utf8_lossy(&bytes).to_string())
+        match String::from_utf8(bytes) {
+            Ok(res)  => Ok(res),
+            Err(err) => Err(Error::NonUtf8String { err }),
+        }
     }
 }
 impl TryFromBytesDynamic<&NonLossy> for String {

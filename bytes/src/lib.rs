@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    04 Oct 2023, 22:54:30
+//    08 Oct 2023, 11:32:38
 //  Auto updated?
 //    Yes
 // 
@@ -128,7 +128,7 @@ pub mod procedural {
     /// Note that this trait is a shorthand for a
     /// [`TryFromBytesDynamic<()>`](struct@crate::TryFromBytesDynamic<()>), which implies a dynamic
     /// struct without input. As such, the derivation procedure for the two is exactly the same,
-    /// except that the toplevel has no `#[bytes(dynamic = ...]` and `#[bytes(dynamic_name = ...]`
+    /// except that the toplevel has no `#[bytes(dynamic = ...)]` and `#[bytes(dynamic_name = ...)]`
     /// fields (but the individual fields still do).
     /// 
     /// As such, we recommend you read the
