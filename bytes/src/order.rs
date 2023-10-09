@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 14:39:18
 //  Last edited:
-//    21 Sep 2023, 14:21:46
+//    09 Oct 2023, 11:23:01
 //  Auto updated?
 //    Yes
 // 
@@ -45,6 +45,30 @@ pub enum Endianness {
     /// Represents little-endian ordering, i.e., LSB first.
     Little,
 }
+impl From<BigEndian> for Endianness {
+    #[inline]
+    fn from(_value: BigEndian) -> Self { Self::Big }
+}
+impl From<LittleEndian> for Endianness {
+    #[inline]
+    fn from(_value: LittleEndian) -> Self { Self::Little }
+}
+impl AsRef<Endianness> for Endianness {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<Endianness> for Endianness {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self { self }
+}
+impl From<&Endianness> for Endianness {
+    #[inline]
+    fn from(value: &Self) -> Self { *value }
+}
+impl From<&mut Endianness> for Endianness {
+    #[inline]
+    fn from(value: &mut Self) -> Self { *value }
+}
 
 /// Instructs a number parser to parse big-endian.
 /// 
@@ -64,6 +88,22 @@ pub enum Endianness {
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct BigEndian;
+impl AsRef<BigEndian> for BigEndian {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<BigEndian> for BigEndian {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self { self }
+}
+impl From<&BigEndian> for BigEndian {
+    #[inline]
+    fn from(value: &Self) -> Self { *value }
+}
+impl From<&mut BigEndian> for BigEndian {
+    #[inline]
+    fn from(value: &mut Self) -> Self { *value }
+}
 
 /// Instructs a number parser to parse little-endian.
 /// 
@@ -83,3 +123,19 @@ pub struct BigEndian;
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct LittleEndian;
+impl AsRef<LittleEndian> for LittleEndian {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<LittleEndian> for LittleEndian {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self { self }
+}
+impl From<&LittleEndian> for LittleEndian {
+    #[inline]
+    fn from(value: &Self) -> Self { *value }
+}
+impl From<&mut LittleEndian> for LittleEndian {
+    #[inline]
+    fn from(value: &mut Self) -> Self { *value }
+}

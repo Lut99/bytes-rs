@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    08 Oct 2023, 12:34:50
+//    09 Oct 2023, 11:42:09
 //  Auto updated?
 //    Yes
 // 
@@ -57,7 +57,9 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// todo!();
+            /// use bytes::TryFromBytesDynamic as _;
+            /// 
+            /// assert_eq!(<()>::try_from_bytes_dynamic((), &[][..]).unwrap(), ());
             /// ```
             #[inline]
             fn try_from_bytes_dynamic(_input: (), _reader: impl Read) -> Result<Self, Self::Error> {
@@ -83,7 +85,10 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// todo!();
+            /// use bytes::TryFromBytesDynamic as _;
+            /// 
+            /// assert_eq!(<()>::try_from_bytes_dynamic(4, &[ 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), ());
+            /// assert!(matches!(<()>::try_from_bytes_dynamic(4, &[ 0x00, 0x2A, 0x00 ][..]), Err(bytes::from_bytes::Error::Read { .. })));
             /// ```
             #[inline]
             fn try_from_bytes_dynamic(input: usize, mut reader: impl Read) -> Result<Self, Self::Error> {
@@ -120,7 +125,10 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// todo!();
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(<(u16,)>::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), (42,));
+            /// assert!(matches!(<(u16,)>::try_from_bytes_dynamic(BigEndian, &[ 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// ```
             #[inline]
             fn try_from_bytes_dynamic(input: $fin, reader: impl Read) -> Result<Self, Self::Error> {
@@ -129,7 +137,7 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
                     Err(err)  => Err(Error::Field { name: stringify!($ffi).into(), err: Box::new(err) }),
                 }
             }
-        }        
+        }
     };
 
     // Case for more than one tuple
@@ -159,7 +167,35 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// todo!();
+            /// use bytes::TryFromBytesDynamic as _;
+            /// 
+            /// // Tuple of two elements
+            /// assert_eq!(<(u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A ][..]).unwrap(), (42, 42));
+            /// assert!(matches!(<(u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of three elements
+            /// assert_eq!(<(u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of four elements
+            /// assert_eq!(<(u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of five elements
+            /// assert_eq!(<(u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of six elements
+            /// assert_eq!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of seven elements
+            /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of eight elements
+            /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// ```
             #[inline]
             fn try_from_bytes_dynamic(_input: (), reader: impl Read) -> Result<Self, Self::Error> {
@@ -189,7 +225,35 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// todo!();
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// // Tuple of two elements
+            /// assert_eq!(<(u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), (42, 42));
+            /// assert!(matches!(<(u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian), &[ 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of three elements
+            /// assert_eq!(<(u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), (42, 42, 42));
+            /// assert!(matches!(<(u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of four elements
+            /// assert_eq!(<(u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), (42, 42, 42, 42));
+            /// assert!(matches!(<(u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of five elements
+            /// assert_eq!(<(u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of six elements
+            /// assert_eq!(<(u16, u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u16, u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of seven elements
+            /// assert_eq!(<(u16, u16, u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u16, u16, u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// 
+            /// // Tuple of eight elements
+            /// assert_eq!(<(u16, u16, u16, u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u16, u16, u16, u16, u16, u16, u16, u16)>::try_from_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// ```
             #[inline]
             fn try_from_bytes_dynamic(input: ($fin, $($ins),+), mut reader: impl Read) -> Result<Self, Self::Error> {
@@ -597,7 +661,9 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(u16::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(_input: BigEndian, mut reader: impl Read) -> Result<Self, Self::Error> {
@@ -629,7 +695,9 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(u16::try_from_bytes_dynamic(&BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -653,7 +721,9 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(u16::try_from_bytes_dynamic(&mut BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -677,7 +747,9 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(u16::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(_input: LittleEndian, mut reader: impl Read) -> Result<Self, Self::Error> {
@@ -709,7 +781,9 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(u16::try_from_bytes_dynamic(&LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -733,7 +807,9 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(u16::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -761,7 +837,16 @@ impl TryFromBytesDynamic<()> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// // This parses with native endianness, so we test based on which endianness is used
+    /// #[cfg(target_endian = "big")]
+    /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+    /// #[cfg(target_endian = "little")]
+    /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+    /// 
+    /// // Note that this conversion may fail
+    /// assert!(matches!(char::try_from_bytes_dynamic((), &[ 0xFF, 0xFF, 0xFF, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     fn try_from_bytes_dynamic(input: (), reader: impl Read) -> Result<Self, Self::Error> {
         // First, parse a u32 as base
@@ -795,7 +880,17 @@ impl TryFromBytesDynamic<Endianness> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Endianness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], endianness: Endianness) -> char {
+    ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], Endianness::Big), 'A');
+    /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], Endianness::Little), 'A');
+    /// 
+    /// // Note that this conversion may fail
+    /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Endianness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -826,7 +921,17 @@ impl TryFromBytesDynamic<&Endianness> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Endianness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], endianness: &Endianness) -> char {
+    ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], &Endianness::Big), 'A');
+    /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], &Endianness::Little), 'A');
+    /// 
+    /// // Note that this conversion may fail
+    /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &Endianness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -854,7 +959,17 @@ impl TryFromBytesDynamic<&mut Endianness> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Endianness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], endianness: &mut Endianness) -> char {
+    ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], &mut Endianness::Big), 'A');
+    /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], &mut Endianness::Little), 'A');
+    /// 
+    /// // Note that this conversion may fail
+    /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut Endianness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -882,7 +997,10 @@ impl TryFromBytesDynamic<BigEndian> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(char::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+    /// assert!(matches!(char::try_from_bytes_dynamic(BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -917,7 +1035,10 @@ impl TryFromBytesDynamic<&BigEndian> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(char::try_from_bytes_dynamic(&BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+    /// assert!(matches!(char::try_from_bytes_dynamic(&BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -945,7 +1066,10 @@ impl TryFromBytesDynamic<&mut BigEndian> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(char::try_from_bytes_dynamic(&mut BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+    /// assert!(matches!(char::try_from_bytes_dynamic(&mut BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -973,7 +1097,10 @@ impl TryFromBytesDynamic<LittleEndian> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(char::try_from_bytes_dynamic(LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+    /// assert!(matches!(char::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1008,7 +1135,10 @@ impl TryFromBytesDynamic<&LittleEndian> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(char::try_from_bytes_dynamic(&LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+    /// assert!(matches!(char::try_from_bytes_dynamic(&LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1036,7 +1166,10 @@ impl TryFromBytesDynamic<&mut LittleEndian> for char {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(char::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+    /// assert!(matches!(char::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1076,7 +1209,10 @@ where
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(<[u16; 2]>::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), [ 42, 42 ]);
+    /// assert!(matches!(<[u16; 2]>::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x2A, 0x00 ][..]), Err(bytes::from_bytes::Error::Field { .. })));
     /// ```
     fn try_from_bytes_dynamic(input: I, mut reader: impl Read) -> Result<Self, Self::Error> {
         // Simply parse all of them in-order
@@ -1088,6 +1224,45 @@ where
             };
         }
         Ok(res.map(|elem| elem.unwrap()))
+    }
+}
+impl<T: TryFromBytesDynamic<()>> TryFromBytesDynamic<usize> for Vec<T>
+where
+    T::Error: 'static,
+{
+    type Error = Error;
+
+    /// Parses a vector of a nested TryFromBytesDynamic type that requires no input.
+    ///
+    /// This parser assumes the elements are tightly packed, i.e., follow immediately one after another. You can explicitly keep areas empty by using a tuple with the [`TryFromBytesDynamic<usize>`] overload of `()`.
+    /// 
+    /// # Arguments
+    /// - `input`: The number of elements to parse.
+    /// - `reader`: The reader where the inner parsers will gets their bytes from.
+    /// 
+    /// # Returns
+    /// A vector with parsed instances of the inner type.
+    /// 
+    /// # Errors
+    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Vec::<u8>::try_from_bytes_dynamic(4, &[ 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), vec![ 0, 42, 0, 42 ]);
+    /// assert!(matches!(Vec::<u8>::try_from_bytes_dynamic(4, &[ 0x00, 0x2A, 0x00 ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+    /// ```
+    fn try_from_bytes_dynamic(input: usize, mut reader: impl Read) -> Result<Self, Self::Error> {
+        // Simply parse all of them in-order
+        let mut res: Vec<T> = Vec::with_capacity(input);
+        for i in 0..input {
+            res.push(match T::try_from_bytes_dynamic((), &mut reader) {
+                Ok(inner) => inner,
+                Err(err)  => { return Err(Error::Field { name: format!("[{i}]"), err: Box::new(err) }); },
+            });
+        }
+        Ok(res)
     }
 }
 impl<T: for<'a> TryFromBytesDynamic<&'a I>, I: AsRef<I>> TryFromBytesDynamic<(usize, I)> for Vec<T>
@@ -1112,7 +1287,10 @@ where
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Vec::<u16>::try_from_bytes_dynamic((2, BigEndian), &[ 0x00, 0x2A, 0x00, 0x2A ][..]).unwrap(), vec![ 42, 42 ]);
+    /// assert!(matches!(Vec::<u16>::try_from_bytes_dynamic((2, BigEndian), &[ 0x00, 0x2A, 0x00 ][..]), Err(bytes::from_bytes::Error::Field { .. })));
     /// ```
     fn try_from_bytes_dynamic(input: (usize, I), mut reader: impl Read) -> Result<Self, Self::Error> {
         // Simply parse all of them in-order
@@ -1128,7 +1306,7 @@ where
 }
 
 // Implement for string-likes
-impl TryFromBytesDynamic<usize> for Cow<'_, str> {
+impl TryFromBytesDynamic<usize> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1147,14 +1325,19 @@ impl TryFromBytesDynamic<usize> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(13, &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(13, &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(13, &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: usize, reader: impl Read) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(NonLossy(input), reader)
     }
 }
-impl TryFromBytesDynamic<Lossiness> for Cow<'_, str> {
+impl TryFromBytesDynamic<Lossiness> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1173,7 +1356,17 @@ impl TryFromBytesDynamic<Lossiness> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &'_ [u8], lossiness: Lossiness) -> Result<Cow<'_, str>, bytes::from_bytes::Error> {
+    ///     Cow::<str>::try_from_bytes_dynamic(lossiness, input)
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::NonLossy(13)).unwrap(), "Hello, world!");
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::Lossy(13)).unwrap(), "Hello, world!");
+    /// assert!(matches!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::NonLossy(13)), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert_eq!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::Lossy(13)).unwrap(), "�ello, world!");
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossiness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1183,7 +1376,7 @@ impl TryFromBytesDynamic<Lossiness> for Cow<'_, str> {
         }
     }
 }
-impl TryFromBytesDynamic<&Lossiness> for Cow<'_, str> {
+impl TryFromBytesDynamic<&Lossiness> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1202,14 +1395,24 @@ impl TryFromBytesDynamic<&Lossiness> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], lossiness: &Lossiness) -> Result<Cow<'static, str>, bytes::from_bytes::Error> {
+    ///     Cow::<str>::try_from_bytes_dynamic(lossiness, input)
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::NonLossy(13)).unwrap(), "Hello, world!");
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::Lossy(13)).unwrap(), "Hello, world!");
+    /// assert!(matches!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::NonLossy(13)), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert_eq!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::Lossy(13)).unwrap(), "�ello, world!");
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &Lossiness, reader: impl Read) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(*input, reader)
     }
 }
-impl TryFromBytesDynamic<&mut Lossiness> for Cow<'_, str> {
+impl TryFromBytesDynamic<&mut Lossiness> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1228,14 +1431,24 @@ impl TryFromBytesDynamic<&mut Lossiness> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], lossiness: &mut Lossiness) -> Result<Cow<'static, str>, bytes::from_bytes::Error> {
+    ///     Cow::<str>::try_from_bytes_dynamic(lossiness, input)
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::NonLossy(13)).unwrap(), "Hello, world!");
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::Lossy(13)).unwrap(), "Hello, world!");
+    /// assert!(matches!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::NonLossy(13)), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert_eq!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::Lossy(13)).unwrap(), "�ello, world!");
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut Lossiness, reader: impl Read) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(*input, reader)
     }
 }
-impl TryFromBytesDynamic<Lossy> for Cow<'_, str> {
+impl TryFromBytesDynamic<Lossy> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1254,14 +1467,19 @@ impl TryFromBytesDynamic<Lossy> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(Lossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "�ello, world!");
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossy, reader: impl Read) -> Result<Self, Self::Error> {
         Ok(Cow::Owned(String::try_from_bytes_dynamic(input, reader)?))
     }
 }
-impl TryFromBytesDynamic<&Lossy> for Cow<'_, str> {
+impl TryFromBytesDynamic<&Lossy> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1280,14 +1498,19 @@ impl TryFromBytesDynamic<&Lossy> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(&Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(&Lossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "�ello, world!");
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(&Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &Lossy, reader: impl Read) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(*input, reader)
     }
 }
-impl TryFromBytesDynamic<&mut Lossy> for Cow<'_, str> {
+impl TryFromBytesDynamic<&mut Lossy> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1306,14 +1529,19 @@ impl TryFromBytesDynamic<&mut Lossy> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(&mut Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(&mut Lossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "�ello, world!");
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(&mut Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut Lossy, reader: impl Read) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(*input, reader)
     }
 }
-impl TryFromBytesDynamic<NonLossy> for Cow<'_, str> {
+impl TryFromBytesDynamic<NonLossy> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1332,14 +1560,19 @@ impl TryFromBytesDynamic<NonLossy> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(NonLossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: NonLossy, reader: impl Read) -> Result<Self, Self::Error> {
         Ok(Cow::Owned(String::try_from_bytes_dynamic(input, reader)?))
     }
 }
-impl TryFromBytesDynamic<&NonLossy> for Cow<'_, str> {
+impl TryFromBytesDynamic<&NonLossy> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1358,14 +1591,19 @@ impl TryFromBytesDynamic<&NonLossy> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(&NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(&NonLossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(&NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &NonLossy, reader: impl Read) -> Result<Self, Self::Error> {
         Self::try_from_bytes_dynamic(*input, reader)
     }
 }
-impl TryFromBytesDynamic<&mut NonLossy> for Cow<'_, str> {
+impl TryFromBytesDynamic<&mut NonLossy> for Cow<'static, str> {
     type Error = Error;
 
     /// Parses a dynamically sized string and returns it as a [`Cow::Owned`].
@@ -1384,7 +1622,12 @@ impl TryFromBytesDynamic<&mut NonLossy> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(Cow::<str>::try_from_bytes_dynamic(&mut NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(&mut NonLossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(Cow::<str>::try_from_bytes_dynamic(&mut NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut NonLossy, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1410,7 +1653,11 @@ impl TryFromBytesDynamic<usize> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryFromBytesDynamic as _;
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(13, &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(String::try_from_bytes_dynamic(13, &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(String::try_from_bytes_dynamic(13, &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: usize, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1436,7 +1683,16 @@ impl TryFromBytesDynamic<Lossiness> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], lossiness: Lossiness) -> Result<String, bytes::from_bytes::Error> {
+    ///     String::try_from_bytes_dynamic(lossiness, input)
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::NonLossy(13)).unwrap(), "Hello, world!");
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::Lossy(13)).unwrap(), "Hello, world!");
+    /// assert!(matches!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::NonLossy(13)), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert_eq!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], Lossiness::Lossy(13)).unwrap(), "�ello, world!");
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossiness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1465,7 +1721,16 @@ impl TryFromBytesDynamic<&Lossiness> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], lossiness: &Lossiness) -> Result<String, bytes::from_bytes::Error> {
+    ///     String::try_from_bytes_dynamic(lossiness, input)
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::NonLossy(13)).unwrap(), "Hello, world!");
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::Lossy(13)).unwrap(), "Hello, world!");
+    /// assert!(matches!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::NonLossy(13)), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert_eq!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &Lossiness::Lossy(13)).unwrap(), "�ello, world!");
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &Lossiness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1491,7 +1756,16 @@ impl TryFromBytesDynamic<&mut Lossiness> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Lossiness, TryFromBytesDynamic as _};
+    /// 
+    /// fn parse(input: &[u8], lossiness: &mut Lossiness) -> Result<String, bytes::from_bytes::Error> {
+    ///     String::try_from_bytes_dynamic(lossiness, input)
+    /// }
+    /// 
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::NonLossy(13)).unwrap(), "Hello, world!");
+    /// assert_eq!(parse(&[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::Lossy(13)).unwrap(), "Hello, world!");
+    /// assert!(matches!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::NonLossy(13)), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert_eq!(parse(&[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ], &mut Lossiness::Lossy(13)).unwrap(), "�ello, world!");
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut Lossiness, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1517,7 +1791,11 @@ impl TryFromBytesDynamic<Lossy> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert_eq!(String::try_from_bytes_dynamic(Lossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "�ello, world!");
+    /// assert!(matches!(String::try_from_bytes_dynamic(Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: Lossy, mut reader: impl Read) -> Result<Self, Self::Error> {
@@ -1528,10 +1806,7 @@ impl TryFromBytesDynamic<Lossy> for String {
         }
 
         // Now simply parse the bytes as a string
-        match String::from_utf8(bytes) {
-            Ok(res)  => Ok(res),
-            Err(err) => Err(Error::NonUtf8String { err }),
-        }
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 }
 impl TryFromBytesDynamic<&Lossy> for String {
@@ -1553,7 +1828,11 @@ impl TryFromBytesDynamic<&Lossy> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(&Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert_eq!(String::try_from_bytes_dynamic(&Lossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "�ello, world!");
+    /// assert!(matches!(String::try_from_bytes_dynamic(&Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &Lossy, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1579,7 +1858,11 @@ impl TryFromBytesDynamic<&mut Lossy> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{Lossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(&mut Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert_eq!(String::try_from_bytes_dynamic(&mut Lossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "�ello, world!");
+    /// assert!(matches!(String::try_from_bytes_dynamic(&mut Lossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut Lossy, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1605,7 +1888,11 @@ impl TryFromBytesDynamic<NonLossy> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(String::try_from_bytes_dynamic(NonLossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(String::try_from_bytes_dynamic(NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: NonLossy, mut reader: impl Read) -> Result<Self, Self::Error> {
@@ -1641,7 +1928,11 @@ impl TryFromBytesDynamic<&NonLossy> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(&NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(String::try_from_bytes_dynamic(&NonLossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(String::try_from_bytes_dynamic(&NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &NonLossy, reader: impl Read) -> Result<Self, Self::Error> {
@@ -1667,7 +1958,11 @@ impl TryFromBytesDynamic<&mut NonLossy> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{NonLossy, TryFromBytesDynamic as _};
+    /// 
+    /// assert_eq!(String::try_from_bytes_dynamic(&mut NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]).unwrap(), "Hello, world!");
+    /// assert!(matches!(String::try_from_bytes_dynamic(&mut NonLossy(13), &[ 0xFF, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ][..]), Err(bytes::from_bytes::Error::NonUtf8String { .. })));
+    /// assert!(matches!(String::try_from_bytes_dynamic(&mut NonLossy(13), &[ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C ][..]), Err(bytes::from_bytes::Error::Read { .. })));
     /// ```
     #[inline]
     fn try_from_bytes_dynamic(input: &mut NonLossy, reader: impl Read) -> Result<Self, Self::Error> {

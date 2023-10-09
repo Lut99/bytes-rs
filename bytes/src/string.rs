@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 16:58:59
 //  Last edited:
-//    22 Sep 2023, 11:06:24
+//    09 Oct 2023, 11:22:30
 //  Auto updated?
 //    Yes
 // 
@@ -44,6 +44,30 @@ pub enum Lossiness {
     /// It's non-lossy
     NonLossy(usize),
 }
+impl From<Lossy> for Lossiness {
+    #[inline]
+    fn from(value: Lossy) -> Self { Self::Lossy(value.0) }
+}
+impl From<NonLossy> for Lossiness {
+    #[inline]
+    fn from(value: NonLossy) -> Self { Self::NonLossy(value.0) }
+}
+impl AsRef<Lossiness> for Lossiness {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<Lossiness> for Lossiness {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self { self }
+}
+impl From<&Lossiness> for Lossiness {
+    #[inline]
+    fn from(value: &Self) -> Self { *value }
+}
+impl From<&mut Lossiness> for Lossiness {
+    #[inline]
+    fn from(value: &mut Self) -> Self { *value }
+}
 
 /// Defines that a string can be parsed lossy (i.e., represent non-UTF-8 characters still) and of a certain length.
 /// 
@@ -63,6 +87,22 @@ pub enum Lossiness {
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Lossy(pub usize);
+impl AsRef<Lossy> for Lossy {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<Lossy> for Lossy {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self { self }
+}
+impl From<&Lossy> for Lossy {
+    #[inline]
+    fn from(value: &Self) -> Self { *value }
+}
+impl From<&mut Lossy> for Lossy {
+    #[inline]
+    fn from(value: &mut Self) -> Self { *value }
+}
 
 /// Defines that a string must be parsed non-lossy (i.e., all UTF-8) and of a certain length.
 /// 
@@ -82,3 +122,19 @@ pub struct Lossy(pub usize);
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NonLossy(pub usize);
+impl AsRef<NonLossy> for NonLossy {
+    #[inline]
+    fn as_ref(&self) -> &Self { self }
+}
+impl AsMut<NonLossy> for NonLossy {
+    #[inline]
+    fn as_mut(&mut self) -> &mut Self { self }
+}
+impl From<&NonLossy> for NonLossy {
+    #[inline]
+    fn from(value: &Self) -> Self { *value }
+}
+impl From<&mut NonLossy> for NonLossy {
+    #[inline]
+    fn from(value: &mut Self) -> Self { *value }
+}
