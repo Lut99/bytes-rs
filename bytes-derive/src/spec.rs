@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:12:16
 //  Last edited:
-//    04 Oct 2023, 21:55:30
+//    09 Oct 2023, 16:49:39
 //  Auto updated?
 //    Yes
 // 
@@ -13,9 +13,9 @@
 // 
 
 use proc_macro2::Span;
-use syn::{Expr, ExprTuple, Ident, Type, TypeTuple};
+use syn::{Expr, ExprStruct, Ident, Path, PathArguments, PathSegment, Type, TypePath};
 use syn::punctuated::Punctuated;
-use syn::token::Paren;
+use syn::token::{Brace, PathSep};
 
 
 /***** LIBRARY *****/
@@ -95,11 +95,33 @@ impl MetadataInfo {
     /// A new instance of Self with default settings.
     #[inline]
     pub fn default_parser(name: Ident) -> Self {
+        // Build the default path segments
+        let mut segments: Punctuated<PathSegment, PathSep> = Punctuated::default();
+        segments.push(PathSegment {
+            ident     : Ident::new("bytes", Span::call_site()),
+            arguments : PathArguments::None,
+        });
+        segments.push(PathSegment {
+            ident     : Ident::new("no_input", Span::call_site()),
+            arguments : PathArguments::None,
+        });
+        segments.push(PathSegment {
+            ident     : Ident::new("NoInput", Span::call_site()),
+            arguments : PathArguments::None,
+        });
+
+        // OK, build self
         Self {
             name,
             input_name   : Ident::new("reader", Span::call_site()),
             dynamic_name : Ident::new("input", Span::call_site()),
-            dynamic_ty   : (Type::Tuple(TypeTuple { paren_token: Paren(Span::call_site()), elems: Punctuated::default() }), Span::call_site()),
+            dynamic_ty   : (Type::Path(TypePath {
+                qself : None,
+                path  : Path {
+                    leading_colon : Some(PathSep(Span::call_site())),
+                    segments,
+                },
+            }), Span::call_site()),
         }
     }
 
@@ -184,10 +206,8 @@ pub struct FieldCommonInfo {
     /// The type as which this field will be serialized/deserialized.
     pub parse_ty  : (Type, Span),
 
-    // /// Any custom offset given.
-    // pub offset : Option<Expr>,
     /// Any dynamic input necessary.
-    pub input  : Expr,
+    pub input : Expr,
 }
 impl FieldCommonInfo {
     /// Creates a default version of this info but with some context info.
@@ -200,6 +220,22 @@ impl FieldCommonInfo {
     /// A new instance of self that has the default values common to all fields.
     #[inline]
     pub fn default(name: Ident, ty: (Type, Span)) -> Self {
+        // Build the default path segments
+        let mut segments: Punctuated<PathSegment, PathSep> = Punctuated::default();
+        segments.push(PathSegment {
+            ident     : Ident::new("bytes", Span::call_site()),
+            arguments : PathArguments::None,
+        });
+        segments.push(PathSegment {
+            ident     : Ident::new("no_input", Span::call_site()),
+            arguments : PathArguments::None,
+        });
+        segments.push(PathSegment {
+            ident     : Ident::new("NoInput", Span::call_site()),
+            arguments : PathArguments::None,
+        });
+
+        // OK, build self
         Self {
             enabled : false,
 
@@ -208,8 +244,18 @@ impl FieldCommonInfo {
             real_ty   : ty.0.clone(),
             parse_ty  : ty,
 
-            // offset : None,
-            input  : Expr::Tuple(ExprTuple { attrs: vec![], paren_token: Paren(Span::call_site()), elems: Punctuated::default() }),
+            input : Expr::Struct(ExprStruct {
+                attrs : vec![],
+                qself : None,
+                path  : Path {
+                    leading_colon : Some(PathSep(Span::call_site())),
+                    segments,
+                },
+                brace_token : Brace(Span::call_site()),
+                fields      : Punctuated::default(),
+                dot2_token  : None,
+                rest        : None,
+            }),
         }
     }
 }

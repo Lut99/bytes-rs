@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 11:30:12
 //  Last edited:
-//    09 Oct 2023, 15:50:33
+//    09 Oct 2023, 16:49:21
 //  Auto updated?
 //    Yes
 // 
@@ -17,6 +17,7 @@ use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::io::Write;
 
+use crate::no_input::NoInput;
 use crate::order::{BigEndian, Endianness, LittleEndian};
 
 
@@ -25,7 +26,7 @@ use crate::order::{BigEndian, Endianness, LittleEndian};
 macro_rules! try_to_bytes_dynamic_primitive_impl {
     // Special case: characters
     (char) => {
-        impl TryToBytesDynamic<()> for char {
+        impl TryToBytesDynamic<NoInput> for char {
             type Error = Error;
         
             /// Serializes this character to the given byte stream.
@@ -43,20 +44,88 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// 
             /// # Example
             /// ```rust
-            /// use bytes::TryToBytesDynamic as _;
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
             /// 
             /// // We parse using native endianness, so test with that in mind
             /// let mut buf: [u8; 4] = [0; 4];
-            /// 'A'.try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// 'A'.try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// #[cfg(target_endian = "big")]
             /// assert_eq!(buf, [0x00, 0x00, 0x00, 0x41]);
             /// #[cfg(target_endian = "little")]
             /// assert_eq!(buf, [0x41, 0x00, 0x00, 0x00]);
             /// ```
             #[inline]
-            fn try_to_bytes_dynamic(&self, input: (), writer: impl Write) -> Result<(), Self::Error> {
+            fn try_to_bytes_dynamic(&self, input: NoInput, writer: impl Write) -> Result<(), Self::Error> {
                 // Serialize as a u32
                 (*self as u32).try_to_bytes_dynamic(input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&NoInput> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in native endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: Any input to configure this serializer, which is nothing.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
+            /// 
+            /// // We parse using native endianness, so test with that in mind
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(buf, [0x00, 0x00, 0x00, 0x41]);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(buf, [0x41, 0x00, 0x00, 0x00]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &NoInput, writer: impl Write) -> Result<(), Self::Error> {
+                // Serialize as a u32
+                (*self as u32).try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut NoInput> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in native endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: Any input to configure this serializer, which is nothing.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
+            /// 
+            /// // We parse using native endianness, so test with that in mind
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(buf, [0x00, 0x00, 0x00, 0x41]);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(buf, [0x41, 0x00, 0x00, 0x00]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut NoInput, writer: impl Write) -> Result<(), Self::Error> {
+                // Serialize as a u32
+                (*self as u32).try_to_bytes_dynamic(*input, writer)
             }
         }
         impl TryToBytesDynamic<Endianness> for char {
@@ -369,7 +438,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
 
     // Primitives
     ($pty:ident) => {
-        impl TryToBytesDynamic<()> for $pty {
+        impl TryToBytesDynamic<NoInput> for $pty {
             type Error = Error;
         
             /// Serializes a primitive to native endianness.
@@ -385,23 +454,85 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// 
             /// # Example
             /// ```rust
-            /// use bytes::TryToBytesDynamic as _;
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
             /// 
             /// // We parse using native endianness, so test with that in mind
             /// let mut buf: [u8; 2] = [0; 2];
-            /// 42u16.try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// 42u16.try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// #[cfg(target_endian = "big")]
             /// assert_eq!(buf, [0x00, 0x2A]);
             /// #[cfg(target_endian = "little")]
             /// assert_eq!(buf, [0x2A, 0x00]);
             /// ```
             #[inline]
-            fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+            fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
                 // Simply call the trait thingy
                 match writer.write_all(self.to_ne_bytes().as_ref()) {
                     Ok(_)    => Ok(()),
                     Err(err) => Err(Error::Write { err }),
                 }
+            }
+        }
+        impl TryToBytesDynamic<&NoInput> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to native endianness.
+            /// 
+            /// To use a specific endianness, give [`BigEndian`] or [`LittleEndian`] as input.
+            /// 
+            /// # Arguments
+            /// - `input`: Ignored, since this parser does not assume input.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
+            /// 
+            /// // We parse using native endianness, so test with that in mind
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(buf, [0x00, 0x2A]);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(buf, [0x2A, 0x00]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &NoInput, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut NoInput> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to native endianness.
+            /// 
+            /// To use a specific endianness, give [`BigEndian`] or [`LittleEndian`] as input.
+            /// 
+            /// # Arguments
+            /// - `input`: Ignored, since this parser does not assume input.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
+            /// 
+            /// // We parse using native endianness, so test with that in mind
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(buf, [0x00, 0x2A]);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(buf, [0x2A, 0x00]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut NoInput, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
             }
         }
         impl TryToBytesDynamic<Endianness> for $pty {
@@ -696,7 +827,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
 macro_rules! try_to_bytes_dynamic_tuple_impl {
     // Case for empty tuple (unit type)
     () => {
-        impl TryToBytesDynamic<()> for () {
+        impl TryToBytesDynamic<NoInput> for () {
             type Error = std::convert::Infallible;
         
             /// Dummy serializer that doesn't do anything.
@@ -712,14 +843,14 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// use bytes::TryToBytesDynamic as _;
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
             /// 
             /// let mut buf: [u8; 0] = [];
-            /// ().try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// ().try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, []);
             /// ```
             #[inline]
-            fn try_to_bytes_dynamic(&self, _input: (), _writer: impl Write) -> Result<(), Self::Error> {
+            fn try_to_bytes_dynamic(&self, _input: NoInput, _writer: impl Write) -> Result<(), Self::Error> {
                 Ok(())
             }
         }
@@ -800,7 +931,7 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
 
     // Case for more than one tuple
     (($fty:ident, $fin:ident, $ffi:tt), $(($tys:ident, $ins:ident, $fis:tt)),+) => {
-        impl<$fty: TryToBytesDynamic<()>, $($tys: TryToBytesDynamic<()>),+> TryToBytesDynamic<()> for ($fty, $($tys),+)
+        impl<$fty: TryToBytesDynamic<NoInput>, $($tys: TryToBytesDynamic<NoInput>),+> TryToBytesDynamic<NoInput> for ($fty, $($tys),+)
         where
             $fty::Error: 'static,
             $($tys::Error: 'static),+
@@ -822,38 +953,38 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// use bytes::TryToBytesDynamic as _;
+            /// use bytes::{NoInput, TryToBytesDynamic as _};
             /// 
             /// let mut buf: [u8; 8] = [0; 8];
             /// 
-            /// (42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// (42u8, 42u8).try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, [0x2A, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
             /// 
-            /// (42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// (42u8, 42u8, 42u8).try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00]);
             /// 
-            /// (42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// (42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x00, 0x00, 0x00, 0x00]);
             /// 
-            /// (42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// (42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x00, 0x00, 0x00]);
             /// 
-            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x00, 0x00]);
             /// 
-            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x00]);
             /// 
-            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
             /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A]);
             /// ```
             #[inline]
-            fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+            fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
                 // Simply serialize the fields one after another
-                if let Err(err) = self.$ffi.try_to_bytes_dynamic((), &mut writer) {
+                if let Err(err) = self.$ffi.try_to_bytes_dynamic(NoInput, &mut writer) {
                     return Err(Error::Field { name: stringify!($ffi).into(), err: Box::new(err) });
                 }
-                $(if let Err(err) = self.$fis.try_to_bytes_dynamic((), &mut writer) {
+                $(if let Err(err) = self.$fis.try_to_bytes_dynamic(NoInput, &mut writer) {
                     return Err(Error::Field { name: stringify!($fis).into(), err: Box::new(err) });
                 })+
                 Ok(())
@@ -1001,7 +1132,7 @@ impl error::Error for Error {
 /// Example { num: 42 }.try_to_bytes(&mut buf[..]).unwrap();
 /// assert_eq!(buf, [ 0x00, 0x2A ]);
 /// ```
-pub trait TryToBytes: TryToBytesDynamic<()> {
+pub trait TryToBytes: TryToBytesDynamic<NoInput> {
     /// Attempts to serialize ourselves to a stream of bytes.
     /// 
     /// # Arguments
@@ -1041,11 +1172,11 @@ pub trait TryToBytes: TryToBytesDynamic<()> {
         Ok(res)
     }
 }
-impl<T: ?Sized + TryToBytesDynamic<()>> TryToBytes for T {
+impl<T: ?Sized + TryToBytesDynamic<NoInput>> TryToBytes for T {
     /// Automatic implementation for types implementing [`TryToBytesDynamic`] but require no input (i.e., `()`).
     #[inline]
     fn try_to_bytes(&self, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic((), writer)
+        self.try_to_bytes_dynamic(NoInput, writer)
     }
 }
 
@@ -1267,7 +1398,7 @@ where
 }
 
 // Implement for string-likes
-impl TryToBytesDynamic<()> for str {
+impl TryToBytesDynamic<NoInput> for str {
     type Error = Error;
 
     /// Serializes a string (as [`str`]) to a writer in UTF-8 encoding.
@@ -1281,24 +1412,24 @@ impl TryToBytesDynamic<()> for str {
     /// 
     /// # Example
     /// ```rust
-    /// use bytes::TryToBytesDynamic as _;
+    /// use bytes::{NoInput, TryToBytesDynamic as _};
     /// 
     /// let mut buf: [u8; 13] = [0; 13];
-    /// "Hello, world!".try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+    /// "Hello, world!".try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
     /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
     /// 
     /// let mut buf: [u8; 12] = [0; 12];
-    /// assert!(matches!("Hello, world!".try_to_bytes_dynamic((), &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!("Hello, world!".try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
     /// ```
     #[inline]
-    fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+    fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
         match writer.write_all(&self.as_bytes()) {
             Ok(_)    => Ok(()),
             Err(err) => Err(Error::Write { err }),
         }
     }
 }
-impl TryToBytesDynamic<()> for Cow<'_, str> {
+impl TryToBytesDynamic<NoInput> for Cow<'_, str> {
     type Error = Error;
 
     /// Serializes a string (as [`Cow<str>`]) to a writer in UTF-8 encoding.
@@ -1313,24 +1444,24 @@ impl TryToBytesDynamic<()> for Cow<'_, str> {
     /// # Example
     /// ```rust
     /// # use std::borrow::Cow;
-    /// use bytes::TryToBytesDynamic as _;
+    /// use bytes::{NoInput, TryToBytesDynamic as _};
     /// 
     /// let mut buf: [u8; 13] = [0; 13];
-    /// Cow::Borrowed("Hello, world!").try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+    /// Cow::Borrowed("Hello, world!").try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
     /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
     /// 
     /// let mut buf: [u8; 12] = [0; 12];
-    /// assert!(matches!(Cow::Borrowed("Hello, world!").try_to_bytes_dynamic((), &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!(Cow::Borrowed("Hello, world!").try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
     /// ```
     #[inline]
-    fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+    fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
         match writer.write_all(&self.as_bytes()) {
             Ok(_)    => Ok(()),
             Err(err) => Err(Error::Write { err }),
         }
     }
 }
-impl TryToBytesDynamic<()> for String {
+impl TryToBytesDynamic<NoInput> for String {
     type Error = Error;
 
     /// Serializes a string (as [`String`]) to a writer in UTF-8 encoding.
@@ -1344,17 +1475,17 @@ impl TryToBytesDynamic<()> for String {
     /// 
     /// # Example
     /// ```rust
-    /// use bytes::TryToBytesDynamic as _;
+    /// use bytes::{NoInput, TryToBytesDynamic as _};
     /// 
     /// let mut buf: [u8; 13] = [0; 13];
-    /// "Hello, world!".to_string().try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+    /// "Hello, world!".to_string().try_to_bytes_dynamic(NoInput, &mut buf[..]).unwrap();
     /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
     /// 
     /// let mut buf: [u8; 12] = [0; 12];
-    /// assert!(matches!("Hello, world!".to_string().try_to_bytes_dynamic((), &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!("Hello, world!".to_string().try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
     /// ```
     #[inline]
-    fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+    fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
         match writer.write_all(&self.as_bytes()) {
             Ok(_)    => Ok(()),
             Err(err) => Err(Error::Write { err }),

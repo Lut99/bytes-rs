@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    08 Oct 2023, 11:32:38
+//    09 Oct 2023, 16:44:00
 //  Auto updated?
 //    Yes
 // 
@@ -23,16 +23,16 @@
 //!   #[derive(TryFromBytes)]
 //!   struct UdpHeader {
 //!       /// The packet source port.
-//!       #[bytes(dynamic = BigEndian)]
+//!       #[bytes(input = BigEndian)]
 //!       src_port : u16,
 //!       /// The packet destination port.
-//!       #[bytes(dynamic = BigEndian)]
+//!       #[bytes(input = BigEndian)]
 //!       dst_port : u16,
 //!       /// The length of the packet, in bytes.
-//!       #[bytes(dynamic = BigEndian)]
+//!       #[bytes(input = BigEndian)]
 //!       length   : u16,
 //!       /// A checksum for the datagram.
-//!       #[bytes(dynamic = BigEndian)]
+//!       #[bytes(input = BigEndian)]
 //!       checksum : u16,
 //!   }
 //!   ```
@@ -45,14 +45,43 @@
 //!   struct Text {
 //!       /// The length of the text we will be parsing
 //!       #[bytes]
-//!       len : usize,   // Note: in bytes
+//!       len : u8,     // Note: length in number of bytes, not characters
 //!       /// And then the text itself, from UTF-8
-//!       #[bytes(dynamic = len)]
+//!       #[bytes(input = len as usize)]
 //!       txt : String,
 //!   }
 //!   
-//!   let input: &[u8] = &[ 13, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ];
-//!   assert_eq!(Text::try_from_bytes(input).txt, "Hello, world!");
+//!   let input: [u8; 14] = [ 13, 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ];
+//!   assert_eq!(Text::try_from_bytes(&input[..]).unwrap().txt, "Hello, world!");
+//!   ```
+//! 
+//!   Existing structs can also be serialized back:
+//!   ```rust
+//!   # use bytes::BigEndian;
+//!   use bytes::TryToBytes;
+//!   
+//!   #[derive(TryToBytes)]
+//!   // See definition above
+//!   struct UdpHeader {
+//!       // ...
+//!   #     #[bytes(input = BigEndian)]
+//!   #     src_port : u16,
+//!   #     #[bytes(input = BigEndian)]
+//!   #     dst_port : u16,
+//!   #     #[bytes(input = BigEndian)]
+//!   #     length   : u16,
+//!   #     #[bytes(input = BigEndian)]
+//!   #     checksum : u16,
+//!   }
+//!   
+//!   let mut output: [u8; 8] = [0; 8];
+//!   UdpHeader {
+//!       src_port : 1586,
+//!       dst_port : 13,
+//!       length : 28,
+//!       checksum : 57879,
+//!   }.try_to_bytes(&mut output[..]).unwrap();
+//!   assert_eq!(output, [ 0x06, 0x32, 0x00, 0x0D, 0x00, 0x1C, 0xE2, 0x17 ]);
 //!   ```
 //!   
 //!   For more information on the derive macros, refer to the documentation of the crate (and then the `procedural` module). Other examples may be found in the [examples](./bytes/examples/) directory or as examples in the docstrings.
@@ -64,7 +93,7 @@
 //!   ```
 //!   Optionally, you can commit to a particular tag:
 //!   ```toml
-//!   bytes = { git = "https://github.com/Lut99/bytes-rs", tag = "v1.0.0" }
+//!   bytes = { git = "https://github.com/Lut99/bytes-rs", tag = "v2.0.0" }
 //!   ```
 //!   
 //!   To build this crate's documentation and open it, run:
@@ -81,6 +110,7 @@
 // Declare the submodules
 pub mod flags;
 pub mod from_bytes;
+pub mod no_input;
 pub mod order;
 pub mod string;
 pub mod to_bytes;
@@ -90,6 +120,7 @@ pub mod to_bytes;
 // Bring some of that into the crate namespace
 pub use flags::Flags;
 pub use from_bytes::{TryFromBytes, TryFromBytesDynamic};
+pub use no_input::NoInput;
 pub use order::{BigEndian, Endianness, LittleEndian};
 pub use string::{Lossiness, Lossy, NonLossy};
 pub use to_bytes::{TryToBytes, TryToBytesDynamic};
@@ -111,32 +142,30 @@ pub mod procedural {
     /// #[derive(TryFromBytes)]
     /// struct UdpHeader {
     ///     /// The packet source port.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     src_port : u16,
     ///     /// The packet destination port.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     dst_port : u16,
     ///     /// The length of the packet, in bytes.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     length   : u16,
     ///     /// A checksum for the datagram.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     checksum : u16,
     /// }
     /// ```
     /// 
     /// Note that this trait is a shorthand for a
-    /// [`TryFromBytesDynamic<()>`](struct@crate::TryFromBytesDynamic<()>), which implies a dynamic
+    /// [`TryFromBytesDynamic<NoInput>`](struct@crate::TryFromBytesDynamic<NoInput>), which implies a dynamic
     /// struct without input. As such, the derivation procedure for the two is exactly the same,
-    /// except that the toplevel has no `#[bytes(dynamic = ...)]` and `#[bytes(dynamic_name = ...)]`
+    /// except that the toplevel has no `#[bytes(dynamic_name = ...)]` and `#[bytes(dynamic_ty = ...)]`
     /// fields (but the individual fields still do).
     /// 
     /// As such, we recommend you read the
     /// [`TryFromBytesDynamic`](crate::procedural::TryFromBytesDynamic)-macro documentation instead.
     #[allow(non_snake_case)]
     pub mod TryFromBytes {}
-
-
 
     /// Defines a procedural macro for deriving
     /// [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) implementations on structs.
@@ -149,16 +178,16 @@ pub mod procedural {
     /// #[derive(TryFromBytesDynamic)]
     /// struct UdpHeader {
     ///     /// The packet source port.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     src_port : u16,
     ///     /// The packet destination port.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     dst_port : u16,
     ///     /// The length of the packet, in bytes.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     length   : u16,
     ///     /// A checksum for the datagram.
-    ///     #[bytes(dynamic = BigEndian)]
+    ///     #[bytes(input = BigEndian)]
     ///     checksum : u16,
     /// }
     /// ```
@@ -189,7 +218,7 @@ pub mod procedural {
     /// ```rust
     /// # use bytes::TryFromBytesDynamic;
     /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic = "usize")]
+    /// #[bytes(dynamic_ty = "usize")]
     /// struct Test {
     ///     
     /// }
@@ -199,7 +228,7 @@ pub mod procedural {
     /// ```rust
     /// # use bytes::TryFromBytesDynamic;
     /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic = "usize")]
+    /// #[bytes(dynamic_ty = "usize")]
     /// struct Test {
     ///     /// Some initial number that is a byte
     ///     num  : u8,
@@ -216,7 +245,7 @@ pub mod procedural {
     /// ```ignore
     /// # use bytes::TryFromBytesDynamic;
     /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic = "usize")]
+    /// #[bytes(dynamic_ty = "usize")]
     /// struct Test {
     ///     /// Some initial number that is a byte
     ///     #[bytes]
@@ -228,20 +257,20 @@ pub mod procedural {
     /// ```
     /// However, this will also not compile! This is because we use the [`String`]-type, which is
     /// also implemented as a [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) and
-    /// requires the number of bytes it should interpret as a string. Thus, we can also give the
-    /// `dynamic = ...` attribute here. However, note that now we don't specify an input _type_,
+    /// requires the number of bytes it should interpret as a string. Thus, we can give the
+    /// `input = ...` attribute here. However, note that now we don't specify an input _type_,
     /// but an input _value_. And we can do so using any expression, including previously parsed
     /// fields!
     /// ```rust
     /// # use bytes::TryFromBytesDynamic;
     /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic = "usize")]
+    /// #[bytes(dynamic_ty = "usize")]
     /// struct Test {
     ///     /// Some initial number that is a byte
     ///     #[bytes]
     ///     num  : u8,
     ///     /// A string value we parse next.
-    ///     #[bytes(dynamic = num as usize)]
+    ///     #[bytes(input = num as usize)]
     ///     text : String,
     /// }
     /// ```
@@ -252,13 +281,13 @@ pub mod procedural {
     /// ```rust
     /// # use bytes::TryFromBytesDynamic;
     /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic = "usize")]
+    /// #[bytes(dynamic_ty = "usize")]
     /// struct Test {
     ///     /// Some initial number that is a byte
     ///     #[bytes]
     ///     num  : u8,
     ///     /// A string value we parse next.
-    ///     #[bytes(dynamic = dynamic_input)]
+    ///     #[bytes(input = input)]
     ///     text : String,
     /// }
     /// ```
@@ -270,8 +299,42 @@ pub mod procedural {
     /// To customize the behaviour of the derivation process, a number of toplevel- and field-level
     /// attributes are defined as arguments to the `#[bytes(...)]`-attribute.
     /// 
+    /// ### Global attributes
+    /// - `#[bytes(from(...))]` or `#[bytes(parse(...))]` or `#[bytes(parser(...))]`: Specifies a
+    ///   "namespace" for other attributes that can be given. This can be read as: "Any attribute
+    ///   in the `from`-namespace is only read by the parser." This allows you to give attributes
+    ///   to only the parser, not the reader.
+    ///   
+    ///   **Example**:
+    ///   ```rust
+    ///   # use bytes::{TryFromBytesDynamic, TryToBytesDynamic};
+    ///   #[derive(TryFromBytesDynamic, TryToBytesDynamic)]
+    ///   #[bytes(from(dynamic_ty = "usize"))]
+    ///   struct Example {
+    ///       // Now we can pass the `input` only when we're parsing, not when serializing!
+    ///       #[bytes(from(input = input))]
+    ///       text : String,
+    ///   }
+    ///   ```
+    /// 
     /// ### Toplevel attributes
-    /// - `#[bytes(dynamic = "<TYPE>")]`: Defines the type of the input in
+    /// - `#[bytes(dynamic_name = "<NAME>")]`: Changes the name of the dynamic input variable in
+    ///   the struct's parser (i.e., the name of the input-argument in
+    ///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic())).
+    ///   Default: `"input"`.
+    ///   
+    ///   **Example**:
+    ///   ```rust
+    ///   # use bytes::TryFromBytesDynamic;
+    ///   #[derive(TryFromBytesDynamic)]
+    ///   #[bytes(dynamic_ty = "usize", dynamic_name = "foo")]
+    ///   struct Example {
+    ///       // Now we can pass it as follows
+    ///       #[bytes(input = foo)]
+    ///       text : String,
+    ///   }
+    ///   ```
+    /// - `#[bytes(dynamic_ty = "<TYPE>")]`: Defines the type of the input in
     ///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic()). Note
     ///   that using a type of [`()`](core::primitive::unit) automatically derives
     ///   [`TryFromBytes`](struct@crate::TryFromBytes) because it is assumed that it means no input
@@ -281,26 +344,10 @@ pub mod procedural {
     ///   ```rust
     ///   # use bytes::TryFromBytesDynamic;
     ///   #[derive(TryFromBytesDynamic)]
-    ///   #[bytes(dynamic = "usize")]
+    ///   #[bytes(dynamic_ty = "usize")]
     ///   struct Example {
     ///       // We can pass this to field parsers
-    ///       #[bytes(dynamic = dynamic_input)]
-    ///       text : String,
-    ///   }
-    ///   ```
-    /// - `#[bytes(dynamic_name = "<NAME>")]`: Changes the name of the dynamic input variable in
-    ///   the struct's parser (i.e., the name of the input-argument in
-    ///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic())).
-    ///   Only has effect when `#[bytes(dynamic = ...)]` is given. Default: `"dynamic_input"`.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   #[bytes(dynamic = "usize", dynamic_name = "foo")]
-    ///   struct Example {
-    ///       // Now we can pass it as follows
-    ///       #[bytes(dynamic = foo)]
+    ///       #[bytes(input = input)]
     ///       text : String,
     ///   }
     ///   ```
@@ -313,22 +360,21 @@ pub mod procedural {
     ///   ```rust
     ///   # use bytes::TryFromBytesDynamic;
     ///   #[derive(TryFromBytesDynamic)]
-    ///   #[bytes(input_name = "input")]
+    ///   #[bytes(input_name = "foo")]
     ///   struct Example {
     ///       /// Without the renaming, this would cause weird errors.
     ///       #[bytes]
-    ///       bytes : [ u8; 10 ],
+    ///       reader : [ u8; 10 ],
     ///   }
     ///   ```
     /// 
     /// ### Field-level attributes
-    /// - `#[bytes(dynamic = <EXPR>)]`: Defines that the field uses
+    /// - `#[bytes(input = <EXPR>)]`: Defines that the field uses
     ///   [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) instead of
     ///   [`TryFromBytes`](struct@crate::TryFromBytes) to provide the internal parser, and then
     ///   states the expression passed as the dynamic input. Note that this expression can include
     ///   the dynamic input value of the main struct as well as any _previous_ fields in the struct
-    ///   declaration. If you need out-of-order parsing, then consider using
-    ///   `#[bytes(offset = ...)]`.
+    ///   declaration.
     ///   
     ///   **Example**:
     ///   ```rust
@@ -339,44 +385,8 @@ pub mod procedural {
     ///       #[bytes]
     ///       len : usize,
     ///       /// ...and then parse that many + 5 bytes as string
-    ///       #[bytes(dynamic = len + 5)]
+    ///       #[bytes(input = len + 5)]
     ///       txt : String,
-    ///   }
-    ///   ```
-    /// - `#[bytes(offset = <NUM>)]`: Defines the offset of this field from the start of the raw
-    ///   bytes given. This allows one to define fields out-of-order or to skip a bunch of useless
-    ///   bytes. If omitted, then an offset immediately following the previous field is assumed.  
-    ///   Note that this influences how other fields are passed, since the default offset is based
-    ///   on the previous field.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   struct Example {
-    ///       // Psych, reverse order!
-    ///       #[bytes(offset = 4)]
-    ///       num2 : i32,
-    ///       #[bytes(offset = 0)]
-    ///       num1 : i32,
-    ///   }
-    ///   ```
-    /// - `#[bytes(length = <NUM>)]`: Defines the length of bytes that this field consumed. This
-    ///   is only used for computing the offset of the next field when it uses the default offset.
-    ///   If omitted, then the current field's [`ParsedLength`](crate::ParsedLength) implementation
-    ///   is used to determine it once it has been parsed.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   struct Example {
-    ///       // Imagine this field is followed by 4 garbage bytes; the first four bytes are
-    ///       // parsed as a number, and then the rest is skipped before `num2` is parsed.
-    ///       #[bytes(length = 8)]
-    ///       num1 : i32,
-    ///       #[bytes]
-    ///       num2 : i32,
     ///   }
     ///   ```
     #[allow(non_snake_case)]

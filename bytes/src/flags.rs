@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    08 Oct 2023, 11:41:29
+//    09 Oct 2023, 16:31:35
 //  Auto updated?
 //    Yes
 // 
@@ -17,6 +17,7 @@ use std::io::{Read, Write};
 use std::ops::{Deref, DerefMut};
 
 use crate::from_bytes::TryFromBytesDynamic;
+use crate::no_input::NoInput;
 use crate::to_bytes::TryToBytesDynamic;
 
 
@@ -84,10 +85,10 @@ macro_rules! flags {
         $outer_vis struct $name {
             $($(#[$field_attr])* $inner_vis $field_name : bool),*
         }
-        impl ::bytes::from_bytes::TryFromBytesDynamic<()> for $name {
+        impl ::bytes::from_bytes::TryFromBytesDynamic<::bytes::no_input::NoInput> for $name {
             type Error = ::bytes::from_bytes::Error;
 
-            fn try_from_bytes_dynamic(_input: (), mut reader: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
+            fn try_from_bytes_dynamic(_input: ::bytes::no_input::NoInput, mut reader: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
                 // Compute how many bytes we need to read
                 const N_FLAGS: ::std::primitive::usize = flags!(count_fields : $($field_name),*);
                 const N_BYTES: ::std::primitive::usize = (N_FLAGS + 8 - 1) / 8;
@@ -114,10 +115,10 @@ macro_rules! flags {
                 })
             }
         }
-        impl ::bytes::to_bytes::TryToBytesDynamic<()> for $name {
+        impl ::bytes::to_bytes::TryToBytesDynamic<::bytes::no_input::NoInput> for $name {
             type Error = ::bytes::to_bytes::Error;
 
-            fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {
+            fn try_to_bytes_dynamic(&self, _input: ::bytes::no_input::NoInput, mut writer: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {
                 // Compute how many bytes we need to read
                 const N_FLAGS: ::std::primitive::usize = flags!(count_fields : $($field_name),*);
                 const N_BYTES: ::std::primitive::usize = (N_FLAGS + 8 - 1) / 8;
@@ -197,10 +198,10 @@ impl<const N: usize> DerefMut for Flags<N> {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
-impl<const N: usize> TryFromBytesDynamic<()> for Flags<N> {
+impl<const N: usize> TryFromBytesDynamic<NoInput> for Flags<N> {
     type Error = crate::from_bytes::Error;
 
-    fn try_from_bytes_dynamic(_input: (), mut reader: impl Read) -> Result<Self, Self::Error> {
+    fn try_from_bytes_dynamic(_input: NoInput, mut reader: impl Read) -> Result<Self, Self::Error> {
         // Compute how many bytes we need to read
         let n_bytes: usize = (N + 8 - 1) / 8;
 
@@ -221,10 +222,10 @@ impl<const N: usize> TryFromBytesDynamic<()> for Flags<N> {
         Ok(Self(flags))
     }
 }
-impl<const N: usize> TryToBytesDynamic<()> for Flags<N> {
+impl<const N: usize> TryToBytesDynamic<NoInput> for Flags<N> {
     type Error = crate::to_bytes::Error;
 
-    fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+    fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
         // Compute how many bytes we need to read
         let n_bytes: usize = (N + 8 - 1) / 8;
 

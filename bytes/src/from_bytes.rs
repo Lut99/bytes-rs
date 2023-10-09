@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    09 Oct 2023, 15:57:06
+//    09 Oct 2023, 16:48:10
 //  Auto updated?
 //    Yes
 // 
@@ -17,6 +17,7 @@ use std::error;
 use std::fmt::{Display, Formatter, Result as FResult};
 use std::io::Read;
 
+use crate::no_input::NoInput;
 use crate::order::{BigEndian, Endianness, LittleEndian};
 use crate::string::{Lossiness, Lossy, NonLossy};
 
@@ -25,16 +26,16 @@ use crate::string::{Lossiness, Lossy, NonLossy};
 /// Translates a list of types into a list of unit-types.
 macro_rules! unitify {
     // Trivial base-case
-    ($fty:ty) => { () };
+    ($fty:ty) => { NoInput };
     // Recursive case
-    ($fty:ty, $($tys:ty),+) => { (), unitify!($($tys),+) };
+    ($fty:ty, $($tys:ty),+) => { NoInput, unitify!($($tys),+) };
 }
 
 /// Implements [`TryFromBytesDynamic`] for a primitive type.
 macro_rules! try_from_bytes_dynamic_primitive_impl {
     // Special case for characters
     (char) => {
-        impl TryFromBytesDynamic<()> for char {
+        impl TryFromBytesDynamic<NoInput> for char {
             type Error = Error;
         
             /// Parses a single [`char`] from the given input stream.
@@ -55,18 +56,18 @@ macro_rules! try_from_bytes_dynamic_primitive_impl {
             /// 
             /// # Example
             /// ```rust
-            /// use bytes::TryFromBytesDynamic as _;
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
             /// 
             /// // This parses with native endianness, so we test based on which endianness is used
             /// #[cfg(target_endian = "big")]
-            /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+            /// assert_eq!(char::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
             /// #[cfg(target_endian = "little")]
-            /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+            /// assert_eq!(char::try_from_bytes_dynamic(NoInput, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
             /// 
             /// // Note that this conversion may fail
-            /// assert!(matches!(char::try_from_bytes_dynamic((), &[ 0xFF, 0xFF, 0xFF, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// assert!(matches!(char::try_from_bytes_dynamic(NoInput, &[ 0xFF, 0xFF, 0xFF, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
             /// ```
-            fn try_from_bytes_dynamic(input: (), reader: impl Read) -> Result<Self, Self::Error> {
+            fn try_from_bytes_dynamic(input: NoInput, reader: impl Read) -> Result<Self, Self::Error> {
                 // First, parse a u32 as base
                 let res: u32 = u32::try_from_bytes_dynamic(input, reader)?;
         
@@ -75,6 +76,80 @@ macro_rules! try_from_bytes_dynamic_primitive_impl {
                     Some(res) => Ok(res),
                     None      => Err(Error::NonUtf8Char { raw: res }),
                 }
+            }
+        }
+        impl TryFromBytesDynamic<&NoInput> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using native endianness. If you want to commit to a particular one, give [`BigEndian`] or [`LittleEndian`] as input.
+            /// 
+            /// # Arguments
+            /// - `input`: Any configurable input to this parser, which is none.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
+            /// 
+            /// // This parses with native endianness, so we test based on which endianness is used
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(char::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(char::try_from_bytes_dynamic(NoInput, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+            /// 
+            /// // Note that this conversion may fail
+            /// assert!(matches!(char::try_from_bytes_dynamic(NoInput, &[ 0xFF, 0xFF, 0xFF, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &NoInput, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut NoInput> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using native endianness. If you want to commit to a particular one, give [`BigEndian`] or [`LittleEndian`] as input.
+            /// 
+            /// # Arguments
+            /// - `input`: Any configurable input to this parser, which is none.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
+            /// 
+            /// // This parses with native endianness, so we test based on which endianness is used
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(char::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(char::try_from_bytes_dynamic(NoInput, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+            /// 
+            /// // Note that this conversion may fail
+            /// assert!(matches!(char::try_from_bytes_dynamic(NoInput, &[ 0xFF, 0xFF, 0xFF, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut NoInput, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
             }
         }
         impl TryFromBytesDynamic<Endianness> for char {
@@ -398,6 +473,103 @@ macro_rules! try_from_bytes_dynamic_primitive_impl {
 
     // General case for other primitives
     ($pty:ident) => {
+        impl TryFromBytesDynamic<NoInput> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using native endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The input to this parsing (none).
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
+            /// 
+            /// // This parses with native endianness, so we test based on which endianness is used
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(u16::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x2A ][..]).unwrap(), 42);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(u16::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(_input: NoInput, mut reader: impl Read) -> Result<Self, Self::Error> {
+                // Attempt to read enough information
+                let mut bytes: [ u8; std::mem::size_of::<$pty>() ] = [ 0; std::mem::size_of::<$pty>() ];
+                if let Err(err) = reader.read_exact(&mut bytes) {
+                    return Err(Error::Read { err });
+                }
+        
+                // Now simply parse the bytes
+                Ok(Self::from_ne_bytes(bytes))
+            }
+        }
+        impl TryFromBytesDynamic<&NoInput> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using native endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The input to this parsing (none).
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
+            /// 
+            /// // This parses with native endianness, so we test based on which endianness is used
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(u16::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x2A ][..]).unwrap(), 42);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(u16::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &NoInput, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut NoInput> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using native endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The input to this parsing (none).
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
+            /// 
+            /// // This parses with native endianness, so we test based on which endianness is used
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(u16::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x2A ][..]).unwrap(), 42);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(u16::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut NoInput, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
         impl TryFromBytesDynamic<Endianness> for $pty {
             type Error = Error;
         
@@ -678,7 +850,7 @@ macro_rules! try_from_bytes_dynamic_primitive_impl {
 macro_rules! try_from_bytes_dynamic_tuple_impl {
     // Case for empty tuple (unit type)
     () => {
-        impl TryFromBytesDynamic<()> for () {
+        impl TryFromBytesDynamic<NoInput> for () {
             type Error = std::convert::Infallible;
         
             /// Dummy parser that parses nothing.
@@ -695,12 +867,12 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// use bytes::TryFromBytesDynamic as _;
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
             /// 
-            /// assert_eq!(<()>::try_from_bytes_dynamic((), &[][..]).unwrap(), ());
+            /// assert_eq!(<()>::try_from_bytes_dynamic(NoInput, &[][..]).unwrap(), ());
             /// ```
             #[inline]
-            fn try_from_bytes_dynamic(_input: (), _reader: impl Read) -> Result<Self, Self::Error> {
+            fn try_from_bytes_dynamic(_input: NoInput, _reader: impl Read) -> Result<Self, Self::Error> {
                 Ok(())
             }
         }
@@ -780,7 +952,7 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
 
     // Case for more than one tuple
     (($fty:ident, $fin:ident, $ffi:tt), $(($tys:ident, $ins:ident, $fis:tt)),+) => {
-        impl<$fty: TryFromBytesDynamic<()>, $($tys: TryFromBytesDynamic<()>),+> TryFromBytesDynamic<()> for ($fty, $($tys),+)
+        impl<$fty: TryFromBytesDynamic<NoInput>, $($tys: TryFromBytesDynamic<NoInput>),+> TryFromBytesDynamic<NoInput> for ($fty, $($tys),+)
         where
             $fty::Error: 'static,
             $($tys::Error: 'static),+
@@ -805,39 +977,39 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// 
             /// # Example
             /// ```rust
-            /// use bytes::TryFromBytesDynamic as _;
+            /// use bytes::{NoInput, TryFromBytesDynamic as _};
             /// 
             /// // Tuple of two elements
-            /// assert_eq!(<(u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A ][..]).unwrap(), (42, 42));
-            /// assert!(matches!(<(u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// assert_eq!(<(u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A ][..]).unwrap(), (42, 42));
+            /// assert!(matches!(<(u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// 
             /// // Tuple of three elements
-            /// assert_eq!(<(u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42));
-            /// assert!(matches!(<(u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// assert_eq!(<(u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// 
             /// // Tuple of four elements
-            /// assert_eq!(<(u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42));
-            /// assert!(matches!(<(u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// assert_eq!(<(u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// 
             /// // Tuple of five elements
-            /// assert_eq!(<(u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42));
-            /// assert!(matches!(<(u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// assert_eq!(<(u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// 
             /// // Tuple of six elements
-            /// assert_eq!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42));
-            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// assert_eq!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// 
             /// // Tuple of seven elements
-            /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42));
-            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// 
             /// // Tuple of eight elements
-            /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42, 42));
-            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic((), &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
+            /// assert_eq!(<(u8, u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]).unwrap(), (42, 42, 42, 42, 42, 42, 42, 42));
+            /// assert!(matches!(<(u8, u8, u8, u8, u8, u8, u8, u8)>::try_from_bytes_dynamic(NoInput, &[ 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A ][..]), Err(bytes::from_bytes::Error::Field { .. })));
             /// ```
             #[inline]
-            fn try_from_bytes_dynamic(_input: (), reader: impl Read) -> Result<Self, Self::Error> {
-                Self::try_from_bytes_dynamic(((), $(unitify!($tys)),+), reader)
+            fn try_from_bytes_dynamic(_input: NoInput, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic((NoInput, $(unitify!($tys)),+), reader)
             }
         }
         impl<$fty: TryFromBytesDynamic<$fin>, $($tys: TryFromBytesDynamic<$ins>),+, $fin, $($ins),+> TryFromBytesDynamic<($fin, $($ins),+)> for ($fty, $($tys),+)
@@ -997,28 +1169,6 @@ impl error::Error for Error {
 
 
 
-/***** HELPERS *****/
-/// Helper trait for selecting which types we mean when we implement [`TryFromBytesDynamic`] for primitives.
-trait PrimitiveFromBytes: num_traits::FromBytes {}
-impl PrimitiveFromBytes for u8 {}
-impl PrimitiveFromBytes for i8 {}
-impl PrimitiveFromBytes for u16 {}
-impl PrimitiveFromBytes for i16 {}
-impl PrimitiveFromBytes for u32 {}
-impl PrimitiveFromBytes for i32 {}
-impl PrimitiveFromBytes for u64 {}
-impl PrimitiveFromBytes for i64 {}
-impl PrimitiveFromBytes for u128 {}
-impl PrimitiveFromBytes for i128 {}
-impl PrimitiveFromBytes for usize {}
-impl PrimitiveFromBytes for isize {}
-impl PrimitiveFromBytes for f32 {}
-impl PrimitiveFromBytes for f64 {}
-
-
-
-
-
 /***** AUXILLARY *****/
 /// Defines that a type can be parsed from a series of bytes.
 /// 
@@ -1030,27 +1180,27 @@ impl PrimitiveFromBytes for f64 {}
 /// # Example
 /// ```rust
 /// # use std::io::Read;
-/// use bytes::{TryFromBytes as _, TryFromBytesDynamic};
+/// use bytes::{NoInput, TryFromBytes as _, TryFromBytesDynamic};
 /// 
 /// struct Example {
 ///     num : u16,
 /// }
-/// impl TryFromBytesDynamic<()> for Example {
+/// impl TryFromBytesDynamic<NoInput> for Example {
 ///     type Error = bytes::from_bytes::Error;
 /// 
 ///     #[inline]
-///     fn try_from_bytes_dynamic(input: (), reader: impl Read) -> Result<Self, Self::Error> {
+///     fn try_from_bytes_dynamic(input: NoInput, reader: impl Read) -> Result<Self, Self::Error> {
 ///         Ok(Self {
 ///             num : u16::try_from_bytes_dynamic(input, reader)?,
 ///         })
 ///     }
 /// }
 /// 
-/// assert_eq!(Example::try_from_bytes_dynamic((), &[ 0x00, 0x2A ][..]).unwrap().num, 10752);
+/// assert_eq!(Example::try_from_bytes_dynamic(NoInput, &[ 0x00, 0x2A ][..]).unwrap().num, 10752);
 /// // Equivalent and more convenient
 /// assert_eq!(Example::try_from_bytes(&[ 0x00, 0x2A ][..]).unwrap().num, 10752);
 /// ```
-pub trait TryFromBytes: TryFromBytesDynamic<()> {
+pub trait TryFromBytes: TryFromBytesDynamic<NoInput> {
     /// Attempts to parse ourselves from the given bytes.
     /// 
     /// # Arguments
@@ -1064,7 +1214,7 @@ pub trait TryFromBytes: TryFromBytesDynamic<()> {
     /// 
     /// # Examples
     /// ```rust
-    /// use bytes::TryFromBytes as _;
+    /// use bytes::{NoInput, TryFromBytes as _};
     /// 
     /// assert_eq!(u8::try_from_bytes(&[ 0x2A ][..]).unwrap(), 42);
     /// assert_eq!(i16::try_from_bytes(&[ 0x2A, 0x00 ][..]).unwrap(), 42);
@@ -1072,11 +1222,11 @@ pub trait TryFromBytes: TryFromBytesDynamic<()> {
     /// ```
     fn try_from_bytes(reader: impl Read) -> Result<Self, Self::Error>;
 }
-impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
+impl<T: TryFromBytesDynamic<NoInput>> TryFromBytes for T {
     /// Automatic implementation of `TryFromBytes` for [`TryFromBytesDynamic`]'s that take no input (`()`).
     #[inline]
     #[track_caller]
-    fn try_from_bytes(reader: impl Read) -> Result<Self, Self::Error> { Self::try_from_bytes_dynamic((), reader) }
+    fn try_from_bytes(reader: impl Read) -> Result<Self, Self::Error> { Self::try_from_bytes_dynamic(NoInput, reader) }
 }
 
 
@@ -1087,14 +1237,14 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 /// Defines that a type can be parsed from a series of bytes, but requires additional input to do so.
 /// 
 /// This can be thought of as a configurable counterpart to the [`TryFromBytes`].
-/// In fact, the [`TryFromBytes`] is an alias for `TryFromBytesDynamic<()>`.
+/// In fact, the [`TryFromBytes`] is an alias for `TryFromBytesDynamic<NoInput>`.
 /// 
 /// Typically, you can automatically derive this trait using the [`TryFromBytesDynamic`](crate::procedural::TryFromBytesDynamic)-macro.
 /// 
 /// # Example
 /// ```rust
 /// # use std::io::Read;
-/// use bytes::TryFromBytesDynamic;
+/// use bytes::{NoInput, TryFromBytesDynamic};
 /// 
 /// struct Example {
 ///     num : u16,
@@ -1110,7 +1260,7 @@ impl<T: TryFromBytesDynamic<()>> TryFromBytes for T {
 ///             })
 ///         } else {
 ///             Ok(Self {
-///                 num : u16::try_from_bytes_dynamic((), bytes)?,
+///                 num : u16::try_from_bytes_dynamic(NoInput, bytes)?,
 ///             })
 ///         }
 ///     }
@@ -1148,43 +1298,6 @@ pub trait TryFromBytesDynamic<I>: Sized {
 }
 
 // Implement it for primitives
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<()> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using native endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The input to this parsing (none).
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::TryFromBytesDynamic as _;
-    /// 
-    /// // This parses with native endianness, so we test based on which endianness is used
-    /// #[cfg(target_endian = "big")]
-    /// assert_eq!(u16::try_from_bytes_dynamic((), &[ 0x00, 0x2A ][..]).unwrap(), 42);
-    /// #[cfg(target_endian = "little")]
-    /// assert_eq!(u16::try_from_bytes_dynamic((), &[ 0x00, 0x2A ][..]).unwrap(), 10752);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(_input: (), mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Attempt to read enough information
-        let mut bytes: [ u8; LENGTH ] = [ 0; LENGTH ];
-        if let Err(err) = reader.read_exact(&mut bytes) {
-            return Err(Error::Read { err });
-        }
-
-        // Now simply parse the bytes
-        Ok(Self::from_ne_bytes(&bytes))
-    }
-}
 try_from_bytes_dynamic_primitive_impl!(u8);
 try_from_bytes_dynamic_primitive_impl!(i8);
 try_from_bytes_dynamic_primitive_impl!(u16);
@@ -1250,7 +1363,7 @@ where
         Ok(res.map(|elem| elem.unwrap()))
     }
 }
-impl<T: TryFromBytesDynamic<()>> TryFromBytesDynamic<usize> for Vec<T>
+impl<T: TryFromBytesDynamic<NoInput>> TryFromBytesDynamic<usize> for Vec<T>
 where
     T::Error: 'static,
 {
@@ -1281,7 +1394,7 @@ where
         // Simply parse all of them in-order
         let mut res: Vec<T> = Vec::with_capacity(input);
         for i in 0..input {
-            res.push(match T::try_from_bytes_dynamic((), &mut reader) {
+            res.push(match T::try_from_bytes_dynamic(NoInput, &mut reader) {
                 Ok(inner) => inner,
                 Err(err)  => { return Err(Error::Field { name: format!("[{i}]"), err: Box::new(err) }); },
             });
