@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 16:58:59
 //  Last edited:
-//    09 Oct 2023, 11:22:30
+//    09 Oct 2023, 11:45:31
 //  Auto updated?
 //    Yes
 // 
@@ -25,16 +25,16 @@
 /// use bytes::{Lossiness, Lossy, NonLossy, TryFromBytesDynamic};
 /// 
 /// #[derive(Debug, TryFromBytesDynamic)]
-/// #[bytes(dynamic = "Lossiness")]
+/// #[bytes(dynamic_ty = "Lossiness")]
 /// struct Text {
-///     #[bytes(dynamic = dynamic_input)]
+///     #[bytes(input = input)]
 ///     txt : String,
 /// }
 /// 
 /// if some_condition() {
-///     assert_eq!(Text::try_from_bytes_dynamic(Lossiness::Lossy(13), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).unwrap().txt, "H�llo, world!");
+///     assert_eq!(Text::try_from_bytes_dynamic(Lossiness::Lossy(13), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ][..]).unwrap().txt, "H�llo, world!");
 /// } else {
-///     assert!(Text::try_from_bytes_dynamic(Lossiness::NonLossy(13), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).is_err());
+///     assert!(Text::try_from_bytes_dynamic(Lossiness::NonLossy(13), &[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ][..]).is_err());
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -79,11 +79,11 @@ impl From<&mut Lossiness> for Lossiness {
 /// 
 /// #[derive(Debug, TryFromBytes)]
 /// struct Text {
-///     #[bytes(dynamic = Lossy(13))]
+///     #[bytes(input = Lossy(13))]
 ///     txt : String,
 /// }
 /// 
-/// assert_eq!(Text::try_from_bytes(&[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).unwrap().txt, "H�llo, world!");
+/// assert_eq!(Text::try_from_bytes(&[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ][..]).unwrap().txt, "H�llo, world!");
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Lossy(pub usize);
@@ -114,11 +114,11 @@ impl From<&mut Lossy> for Lossy {
 /// 
 /// #[derive(Debug, TryFromBytes)]
 /// struct Text {
-///     #[bytes(dynamic = NonLossy(13))]
+///     #[bytes(input = NonLossy(13))]
 ///     txt : String,
 /// }
 /// 
-/// assert!(Text::try_from_bytes(&[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ]).is_err());
+/// assert!(Text::try_from_bytes(&[ 0x48, 0xFF, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21 ][..]).is_err());
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NonLossy(pub usize);

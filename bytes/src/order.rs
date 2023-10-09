@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 14:39:18
 //  Last edited:
-//    09 Oct 2023, 11:23:01
+//    09 Oct 2023, 11:44:56
 //  Auto updated?
 //    Yes
 // 
@@ -26,16 +26,16 @@
 /// use bytes::{Endianness, TryFromBytesDynamic};
 /// 
 /// #[derive(TryFromBytesDynamic)]
-/// #[bytes(dynamic = "Endianness")]
+/// #[bytes(dynamic_ty = "Endianness")]
 /// struct Number {
-///     #[bytes(dynamic = dynamic_input)]
+///     #[bytes(input = input)]
 ///     num : u16,
 /// }
 /// 
 /// if some_condition() {
-///     assert_eq!(Number::try_from_bytes_dynamic(Endianness::Big, &[ 0x00, 0x2A ]).unwrap().num, 42);
+///     assert_eq!(Number::try_from_bytes_dynamic(Endianness::Big, &[ 0x00, 0x2A ][..]).unwrap().num, 42);
 /// } else {
-///     assert_eq!(Number::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x2A ]).unwrap().num, 10752);
+///     assert_eq!(Number::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x2A ][..]).unwrap().num, 10752);
 /// }
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -80,11 +80,11 @@ impl From<&mut Endianness> for Endianness {
 /// 
 /// #[derive(TryFromBytes)]
 /// struct Number {
-///     #[bytes(dynamic = BigEndian)]
+///     #[bytes(input = BigEndian)]
 ///     num : u16,
 /// }
 /// 
-/// assert_eq!(Number::try_from_bytes(&[ 0x00, 0x2A ]).unwrap().num, 42);
+/// assert_eq!(Number::try_from_bytes(&[ 0x00, 0x2A ][..]).unwrap().num, 42);
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct BigEndian;
@@ -115,11 +115,11 @@ impl From<&mut BigEndian> for BigEndian {
 /// 
 /// #[derive(TryFromBytes)]
 /// struct Number {
-///     #[bytes(dynamic = LittleEndian)]
+///     #[bytes(input = LittleEndian)]
 ///     num : u16,
 /// }
 /// 
-/// assert_eq!(Number::try_from_bytes(&[ 0x00, 0x2A ]).unwrap().num, 10752);
+/// assert_eq!(Number::try_from_bytes(&[ 0x00, 0x2A ][..]).unwrap().num, 10752);
 /// ```
 #[derive(Clone, Copy, Debug)]
 pub struct LittleEndian;
