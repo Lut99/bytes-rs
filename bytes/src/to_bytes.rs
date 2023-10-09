@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 11:30:12
 //  Last edited:
-//    30 Sep 2023, 14:19:33
+//    09 Oct 2023, 12:21:37
 //  Auto updated?
 //    Yes
 // 
@@ -20,6 +20,252 @@ use std::io::Write;
 use crate::order::{BigEndian, Endianness, LittleEndian};
 
 
+/***** HELPER MACROS *****/
+/// Translates a list of types into a list of unit-types.
+macro_rules! unitify {
+    // Trivial base-case
+    ($fty:ty) => { () };
+    // Recursive case
+    ($fty:ty, $($tys:ty),+) => { (), unitify!($($tys),+) };
+}
+
+/// Implements [`TryToBytesDynamic`] for a tuple of the given size.
+/// 
+/// The size is denoted as a pair of typenames, .e.g,
+/// ```ignore
+/// // Implements for a tuple of length three
+/// try_to_bytes_dynamic_tuple_impl!(T1, T2, T3);
+/// ```
+macro_rules! try_to_bytes_dynamic_tuple_impl {
+    // Case for empty tuple (unit type)
+    () => {
+        impl TryToBytesDynamic<()> for () {
+            type Error = std::convert::Infallible;
+        
+            /// Dummy serializer that doesn't do anything.
+            /// 
+            /// This is useful for completeness purposes.
+            /// 
+            /// # Arguments
+            /// - `input`: No input required, ignored.
+            /// - `writer`: A [`Write`]r that we do not touch.
+            /// 
+            /// # Errors
+            /// This function does not error (hence it relying on [`Infallible`](std::convert::Infallible)).
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::TryToBytesDynamic as _;
+            /// 
+            /// let mut buf: [u8; 0] = [];
+            /// ().try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, []);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, _input: (), _writer: impl Write) -> Result<(), Self::Error> {
+                Ok(())
+            }
+        }
+        impl TryToBytesDynamic<usize> for () {
+            type Error = Error;
+        
+            /// This functions writes the given number of zeroes to the given writer.
+            /// 
+            /// This is useful for writing headers with reserved or ignored areas.
+            /// 
+            /// # Arguments
+            /// - `input`: The number of zero-bytes to write.
+            /// - `writer`: The [`Write`]er to write to.
+            /// 
+            /// # Errors
+            /// This function errors if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::TryToBytesDynamic as _;
+            /// 
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// ().try_to_bytes_dynamic(4, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0, 0, 0, 0]);
+            /// 
+            /// let mut buf: [u8; 3] = [0; 3];
+            /// assert!(matches!(().try_to_bytes_dynamic(4, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: usize, mut writer: impl Write) -> Result<(), Self::Error> {
+                match writer.write_all(&vec![ 0; input ]) {
+                    Ok(_)    => Ok(()),
+                    Err(err) => Err(Error::Write { err }),
+                }
+            }
+        }
+    };
+
+    // Case for a single-element tuple
+    (($fty:ident, $fin:ident, $ffi:tt)) => {
+        impl<$fty: TryToBytesDynamic<$fin>, $fin> TryToBytesDynamic<$fin> for ($fty,)
+        where
+            $fty::Error: 'static,
+        {
+            type Error = Error;
+
+            /// Serializes the inner value in a tuple with only one element.
+            /// 
+            /// This is useful for... well... completeness purposes, I guess?
+            /// 
+            /// # Arguments
+            /// - `input`: The input to pass to the inner serializer.
+            /// - `writer`: The [`Write`]r to which we serialize the inner value.
+            /// 
+            /// # Errors
+            /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`SerializeError::Field`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A]);
+            /// 
+            /// let mut buf: [u8; 1] = [0; 1];
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: $fin, writer: impl Write) -> Result<(), Self::Error> {
+                match self.$ffi.try_to_bytes_dynamic(input, writer) {
+                    Ok(_)    => Ok(()),
+                    Err(err) => Err(Error::Field { name: stringify!($ffi).into(), err: Box::new(err) }),
+                }
+            }
+        }
+    };
+
+    // Case for more than one tuple
+    (($fty:ident, $fin:ident, $ffi:tt), $(($tys:ident, $ins:ident, $fis:tt)),+) => {
+        impl<$fty: TryToBytesDynamic<()>, $($tys: TryToBytesDynamic<()>),+> TryToBytesDynamic<()> for ($fty, $($tys),+)
+        where
+            $fty::Error: 'static,
+            $($tys::Error: 'static),+
+        {
+            type Error = Error;
+
+            /// Serializes a tuple of inner values that take no dynamic input.
+            /// 
+            /// This overload allows [`TryToBytes`] to be derived for tuples that support it.
+            /// 
+            /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
+            /// 
+            /// # Arguments
+            /// - `input`: Nothing, since the inner tuples do not take input.
+            /// - `writer`: The [`Write`]r to which the inner serializes write.
+            /// 
+            /// # Errors
+            /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::TryToBytesDynamic as _;
+            /// 
+            /// let mut buf: [u8; 8] = [0; 8];
+            /// 
+            /// (42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x2A, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x00, 0x00]);
+            /// 
+            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x00]);
+            /// 
+            /// (42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8, 42u8).try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+                // Simply serialize the fields one after another
+                if let Err(err) = self.$ffi.try_to_bytes_dynamic((), &mut writer) {
+                    return Err(Error::Field { name: stringify!($ffi).into(), err: Box::new(err) });
+                }
+                $(if let Err(err) = self.$fis.try_to_bytes_dynamic((), &mut writer) {
+                    return Err(Error::Field { name: stringify!($fis).into(), err: Box::new(err) });
+                })+
+                Ok(())
+            }
+        }
+        impl<$fty: TryToBytesDynamic<$fin>, $($tys: TryToBytesDynamic<$ins>),+, $fin, $($ins),+> TryToBytesDynamic<($fin, $($ins),+)> for ($fty, $($tys),+)
+        where
+            $fty::Error: 'static,
+            $($tys::Error: 'static),+
+        {
+            type Error = Error;
+
+            /// Serializes a tuple of inner values.
+            /// 
+            /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
+            /// 
+            /// # Arguments
+            /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
+            /// - `writer`: The [`Write`]r to which the inner serializes write.
+            /// 
+            /// # Errors
+            /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 16] = [0; 16];
+            /// 
+            /// (42u16, 42u16).try_to_bytes_dynamic((BigEndian, BigEndian), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u16, 42u16, 42u16).try_to_bytes_dynamic((BigEndian, BigEndian, BigEndian), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u16, 42u16, 42u16, 42u16).try_to_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u16, 42u16, 42u16, 42u16, 42u16).try_to_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u16, 42u16, 42u16, 42u16, 42u16, 42u16).try_to_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x00, 0x00, 0x00]);
+            /// 
+            /// (42u16, 42u16, 42u16, 42u16, 42u16, 42u16, 42u16).try_to_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x00]);
+            /// 
+            /// (42u16, 42u16, 42u16, 42u16, 42u16, 42u16, 42u16, 42u16).try_to_bytes_dynamic((BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian, BigEndian), &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: ($fin, $($ins),+), mut writer: impl Write) -> Result<(), Self::Error> {
+                // Simply serialize the fields one after another
+                if let Err(err) = self.$ffi.try_to_bytes_dynamic(input.$ffi, &mut writer) {
+                    return Err(Error::Field { name: stringify!($ffi).into(), err: Box::new(err) });
+                }
+                $(if let Err(err) = self.$fis.try_to_bytes_dynamic(input.$fis, &mut writer) {
+                    return Err(Error::Field { name: stringify!($fis).into(), err: Box::new(err) });
+                })+
+                Ok(())
+            }
+        }
+    };
+}
+
+
+
+
+
 /***** ERRORS *****/
 /// Defines errors that may occur when using library serializers.
 /// 
@@ -31,23 +277,25 @@ pub enum Error {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryToBytes as _;
+    /// 
+    /// let mut buf: [u8; 0] = [];
+    /// assert!(matches!(0u8.try_to_bytes(&mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
     /// ```
     Write { err: std::io::Error },
     /// A sub-serializer of a field failed.
     /// 
     /// # Example
     /// ```rust
-    /// use bytes::TryFromBytes;
-    /// use bytes::errors::ParseError;
+    /// use bytes::TryToBytes;
     /// 
-    /// #[derive(ToBytes)]
+    /// #[derive(TryToBytes)]
     /// struct Example {
     ///     #[bytes]
     ///     field_1 : u32
     /// }
     /// 
-    /// assert!(matches!(Example::to_bytes(&mut []), Err(ParseError::Field{ .. })));
+    /// assert!(matches!(Example { field_1: 42 }.try_to_bytes(&mut [][..]), Err(bytes::to_bytes::Error::Field{ .. })));
     /// ```
     Field { name: String, err: Box<dyn error::Error> },
 }
@@ -106,7 +354,17 @@ impl PrimitiveToBytes for f64 {}
 /// 
 /// # Example
 /// ```rust
-/// todo!();
+/// use bytes::{BigEndian, TryToBytes};
+/// 
+/// #[derive(TryToBytes)]
+/// struct Example {
+///     #[bytes(input = BigEndian)]
+///     num : u16,
+/// }
+/// 
+/// let mut buf: [u8; 2] = [0; 2];
+/// Example { num: 42 }.try_to_bytes(&mut buf[..]).unwrap();
+/// assert_eq!(buf, [ 0x00, 0x2A ]);
 /// ```
 pub trait TryToBytes: TryToBytesDynamic<()> {
     /// Attempts to serialize ourselves to a stream of bytes.
@@ -119,7 +377,11 @@ pub trait TryToBytes: TryToBytesDynamic<()> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryToBytes as _};
+    /// 
+    /// let mut buf: [u8; 0] = [];
+    /// ().try_to_bytes(&mut buf[..]).unwrap();
+    /// assert_eq!(buf, []);
     /// ```
     fn try_to_bytes(&self, writer: impl Write) -> Result<(), Self::Error>;
 }
@@ -142,7 +404,20 @@ impl<T: TryToBytesDynamic<()>> TryToBytes for T {
 /// 
 /// # Example
 /// ```rust
-/// todo!();
+/// use bytes::{Endianness, TryToBytesDynamic};
+/// 
+/// #[derive(TryToBytesDynamic)]
+/// #[bytes(dynamic_ty = "Endianness")]
+/// struct Example {
+///     #[bytes(input = input)]
+///     num : u16,
+/// }
+/// 
+/// let mut buf: [u8; 2] = [0; 2];
+/// Example { num: 42 }.try_to_bytes_dynamic(Endianness::Big, &mut buf[..]).unwrap();
+/// assert_eq!(buf, [ 0x00, 0x2A ]);
+/// Example { num: 42 }.try_to_bytes_dynamic(Endianness::Little, &mut buf[..]).unwrap();
+/// assert_eq!(buf, [ 0x2A, 0x00 ]);
 /// ```
 pub trait TryToBytesDynamic<I> {
     /// The type of error that may occur when serializing.
@@ -160,7 +435,11 @@ pub trait TryToBytesDynamic<I> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryToBytesDynamic};
+    /// 
+    /// let mut buf: [u8; 2] = [0; 2];
+    /// 42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [ 0x00, 0x2A ]);
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error>;
 }
@@ -182,7 +461,15 @@ impl<T: PrimitiveToBytes> TryToBytesDynamic<()> for T {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryToBytesDynamic as _;
+    /// 
+    /// // We parse using native endianness, so test with that in mind
+    /// let mut buf: [u8; 2] = [0; 2];
+    /// 42u16.try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+    /// #[cfg(target_endian = "big")]
+    /// assert_eq!(buf, [0x00, 0x2A]);
+    /// #[cfg(target_endian = "little")]
+    /// assert_eq!(buf, [0x2A, 0x00]);
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
@@ -409,6 +696,11 @@ impl TryToBytesDynamic<()> for char {
     /// 
     /// # Errors
     /// This function may error if we failed to serialize the equivalent [`u32`].
+    /// 
+    /// # Example
+    /// ```rust
+    /// todo!();
+    /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, input: (), writer: impl Write) -> Result<(), Self::Error> {
         // Serialize as a u32
@@ -600,401 +892,15 @@ impl TryToBytesDynamic<&mut LittleEndian> for char {
 }
 
 // Implement it for tightly-packed containers
-impl TryToBytesDynamic<()> for () {
-    type Error = std::convert::Infallible;
-
-    /// Dummy serializer that doesn't do anything.
-    /// 
-    /// This is useful for completeness purposes.
-    /// 
-    /// # Arguments
-    /// - `input`: No input required, ignored.
-    /// - `writer`: A [`Write`]r that we do not touch.
-    /// 
-    /// # Errors
-    /// This function does not error (hence it relying on [`Infallible`](std::convert::Infallible)).
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, _input: (), _writer: impl Write) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
-impl TryToBytesDynamic<usize> for () {
-    type Error = Error;
-
-    /// This functions writes the given number of zeroes to the given writer.
-    /// 
-    /// This is useful for writing headers with reserved or ignored areas.
-    /// 
-    /// # Arguments
-    /// - `input`: The number of zero-bytes to write.
-    /// - `writer`: The [`Write`]er to write to.
-    /// 
-    /// # Errors
-    /// This function errors if we failed to write to the given writer.
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: usize, mut writer: impl Write) -> Result<(), Self::Error> {
-        match writer.write_all(&vec![ 0; input ]) {
-            Ok(_)    => Ok(()),
-            Err(err) => Err(Error::Write { err }),
-        }
-    }
-}
-impl<T: TryToBytesDynamic<I>, I> TryToBytesDynamic<I> for (T,)
-where
-    T::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes the inner value in a tuple with only one element.
-    /// 
-    /// This is useful for... well... completeness purposes, I guess?
-    /// 
-    /// # Arguments
-    /// - `input`: The input to pass to the inner serializer.
-    /// - `writer`: The [`Write`]r to which we serialize the inner value.
-    /// 
-    /// # Errors
-    /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error> {
-        match self.0.try_to_bytes_dynamic(input, writer) {
-            Ok(_)    => Ok(()),
-            Err(err) => Err(Error::Field { name: "0".into(), err: Box::new(err) }),
-        }
-    }
-}
-impl<T1: TryToBytesDynamic<I1>, T2: TryToBytesDynamic<I2>, I1, I2> TryToBytesDynamic<(I1, I2)> for (T1, T2)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes a tuple of inner values.
-    /// 
-    /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
-    /// - `writer`: The [`Write`]r to which the inner serializes write.
-    /// 
-    /// # Errors
-    /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (I1, I2), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply serialize the fields one after another
-        if let Err(err) = self.0.try_to_bytes_dynamic(input.0, &mut writer) {
-            return Err(Error::Field { name: "0".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.1.try_to_bytes_dynamic(input.1, writer) {
-            return Err(Error::Field { name: "1".into(), err: Box::new(err) });
-        }
-        Ok(())
-    }
-}
-impl<T1: TryToBytesDynamic<I1>, T2: TryToBytesDynamic<I2>, T3: TryToBytesDynamic<I3>, I1, I2, I3> TryToBytesDynamic<(I1, I2, I3)> for (T1, T2, T3)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes a tuple of inner values.
-    /// 
-    /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
-    /// - `writer`: The [`Write`]r to which the inner serializes write.
-    /// 
-    /// # Errors
-    /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (I1, I2, I3), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply serialize the fields one after another
-        if let Err(err) = self.0.try_to_bytes_dynamic(input.0, &mut writer) {
-            return Err(Error::Field { name: "0".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.1.try_to_bytes_dynamic(input.1, &mut writer) {
-            return Err(Error::Field { name: "1".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.2.try_to_bytes_dynamic(input.2, writer) {
-            return Err(Error::Field { name: "2".into(), err: Box::new(err) });
-        }
-        Ok(())
-    }
-}
-impl<T1: TryToBytesDynamic<I1>, T2: TryToBytesDynamic<I2>, T3: TryToBytesDynamic<I3>, T4: TryToBytesDynamic<I4>, I1, I2, I3, I4> TryToBytesDynamic<(I1, I2, I3, I4)> for (T1, T2, T3, T4)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes a tuple of inner values.
-    /// 
-    /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
-    /// - `writer`: The [`Write`]r to which the inner serializes write.
-    /// 
-    /// # Errors
-    /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (I1, I2, I3, I4), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply serialize the fields one after another
-        if let Err(err) = self.0.try_to_bytes_dynamic(input.0, &mut writer) {
-            return Err(Error::Field { name: "0".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.1.try_to_bytes_dynamic(input.1, &mut writer) {
-            return Err(Error::Field { name: "1".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.2.try_to_bytes_dynamic(input.2, &mut writer) {
-            return Err(Error::Field { name: "2".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.3.try_to_bytes_dynamic(input.3, writer) {
-            return Err(Error::Field { name: "3".into(), err: Box::new(err) });
-        }
-        Ok(())
-    }
-}
-impl<T1: TryToBytesDynamic<I1>, T2: TryToBytesDynamic<I2>, T3: TryToBytesDynamic<I3>, T4: TryToBytesDynamic<I4>, T5: TryToBytesDynamic<I5>, I1, I2, I3, I4, I5> TryToBytesDynamic<(I1, I2, I3, I4, I5)> for (T1, T2, T3, T4, T5)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes a tuple of inner values.
-    /// 
-    /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
-    /// - `writer`: The [`Write`]r to which the inner serializes write.
-    /// 
-    /// # Errors
-    /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (I1, I2, I3, I4, I5), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply serialize the fields one after another
-        if let Err(err) = self.0.try_to_bytes_dynamic(input.0, &mut writer) {
-            return Err(Error::Field { name: "0".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.1.try_to_bytes_dynamic(input.1, &mut writer) {
-            return Err(Error::Field { name: "1".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.2.try_to_bytes_dynamic(input.2, &mut writer) {
-            return Err(Error::Field { name: "2".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.3.try_to_bytes_dynamic(input.3, &mut writer) {
-            return Err(Error::Field { name: "3".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.4.try_to_bytes_dynamic(input.4, writer) {
-            return Err(Error::Field { name: "4".into(), err: Box::new(err) });
-        }
-        Ok(())
-    }
-}
-impl<T1: TryToBytesDynamic<I1>, T2: TryToBytesDynamic<I2>, T3: TryToBytesDynamic<I3>, T4: TryToBytesDynamic<I4>, T5: TryToBytesDynamic<I5>, T6: TryToBytesDynamic<I6>, I1, I2, I3, I4, I5, I6> TryToBytesDynamic<(I1, I2, I3, I4, I5, I6)> for (T1, T2, T3, T4, T5, T6)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-    T6::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes a tuple of inner values.
-    /// 
-    /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
-    /// - `writer`: The [`Write`]r to which the inner serializes write.
-    /// 
-    /// # Errors
-    /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (I1, I2, I3, I4, I5, I6), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply serialize the fields one after another
-        if let Err(err) = self.0.try_to_bytes_dynamic(input.0, &mut writer) {
-            return Err(Error::Field { name: "0".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.1.try_to_bytes_dynamic(input.1, &mut writer) {
-            return Err(Error::Field { name: "1".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.2.try_to_bytes_dynamic(input.2, &mut writer) {
-            return Err(Error::Field { name: "2".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.3.try_to_bytes_dynamic(input.3, &mut writer) {
-            return Err(Error::Field { name: "3".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.4.try_to_bytes_dynamic(input.4, &mut writer) {
-            return Err(Error::Field { name: "4".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.5.try_to_bytes_dynamic(input.5, writer) {
-            return Err(Error::Field { name: "5".into(), err: Box::new(err) });
-        }
-        Ok(())
-    }
-}
-impl<T1: TryToBytesDynamic<I1>, T2: TryToBytesDynamic<I2>, T3: TryToBytesDynamic<I3>, T4: TryToBytesDynamic<I4>, T5: TryToBytesDynamic<I5>, T6: TryToBytesDynamic<I6>, T7: TryToBytesDynamic<I7>, I1, I2, I3, I4, I5, I6, I7> TryToBytesDynamic<(I1, I2, I3, I4, I5, I6, I7)> for (T1, T2, T3, T4, T5, T6, T7)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-    T6::Error: 'static,
-    T7::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes a tuple of inner values.
-    /// 
-    /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
-    /// - `writer`: The [`Write`]r to which the inner serializes write.
-    /// 
-    /// # Errors
-    /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (I1, I2, I3, I4, I5, I6, I7), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply serialize the fields one after another
-        if let Err(err) = self.0.try_to_bytes_dynamic(input.0, &mut writer) {
-            return Err(Error::Field { name: "0".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.1.try_to_bytes_dynamic(input.1, &mut writer) {
-            return Err(Error::Field { name: "1".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.2.try_to_bytes_dynamic(input.2, &mut writer) {
-            return Err(Error::Field { name: "2".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.3.try_to_bytes_dynamic(input.3, &mut writer) {
-            return Err(Error::Field { name: "3".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.4.try_to_bytes_dynamic(input.4, &mut writer) {
-            return Err(Error::Field { name: "4".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.5.try_to_bytes_dynamic(input.5, &mut writer) {
-            return Err(Error::Field { name: "5".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.6.try_to_bytes_dynamic(input.6, writer) {
-            return Err(Error::Field { name: "6".into(), err: Box::new(err) });
-        }
-        Ok(())
-    }
-}
-impl<T1: TryToBytesDynamic<I1>, T2: TryToBytesDynamic<I2>, T3: TryToBytesDynamic<I3>, T4: TryToBytesDynamic<I4>, T5: TryToBytesDynamic<I5>, T6: TryToBytesDynamic<I6>, T7: TryToBytesDynamic<I7>, T8: TryToBytesDynamic<I8>, I1, I2, I3, I4, I5, I6, I7, I8> TryToBytesDynamic<(I1, I2, I3, I4, I5, I6, I7, I8)> for (T1, T2, T3, T4, T5, T6, T7, T8)
-where
-    T1::Error: 'static,
-    T2::Error: 'static,
-    T3::Error: 'static,
-    T4::Error: 'static,
-    T5::Error: 'static,
-    T6::Error: 'static,
-    T7::Error: 'static,
-    T8::Error: 'static,
-{
-    type Error = Error;
-
-    /// Serializes a tuple of inner values.
-    /// 
-    /// It is assumed these values are tightly packed, i.e., should be serialized directly one after another. To add in some space between each elements, write them as tuples with the null-type (i.e., `(T, ())`).
-    /// 
-    /// # Arguments
-    /// - `input`: A tuple with inputs for each of the inner serializers. They are passed in-order, as-is.
-    /// - `writer`: The [`Write`]r to which the inner serializes write.
-    /// 
-    /// # Errors
-    /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (I1, I2, I3, I4, I5, I6, I7, I8), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply serialize the fields one after another
-        if let Err(err) = self.0.try_to_bytes_dynamic(input.0, &mut writer) {
-            return Err(Error::Field { name: "0".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.1.try_to_bytes_dynamic(input.1, &mut writer) {
-            return Err(Error::Field { name: "1".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.2.try_to_bytes_dynamic(input.2, &mut writer) {
-            return Err(Error::Field { name: "2".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.3.try_to_bytes_dynamic(input.3, &mut writer) {
-            return Err(Error::Field { name: "3".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.4.try_to_bytes_dynamic(input.4, &mut writer) {
-            return Err(Error::Field { name: "4".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.5.try_to_bytes_dynamic(input.5, &mut writer) {
-            return Err(Error::Field { name: "5".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.6.try_to_bytes_dynamic(input.6, &mut writer) {
-            return Err(Error::Field { name: "6".into(), err: Box::new(err) });
-        }
-        if let Err(err) = self.7.try_to_bytes_dynamic(input.7, writer) {
-            return Err(Error::Field { name: "7".into(), err: Box::new(err) });
-        }
-        Ok(())
-    }
-}
+try_to_bytes_dynamic_tuple_impl!();
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0));
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1));
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2));
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3));
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4));
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4), (T6, I6, 5));
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4), (T6, I6, 5), (T7, I7, 6));
+try_to_bytes_dynamic_tuple_impl!((T1, I1, 0), (T2, I2, 1), (T3, I3, 2), (T4, I4, 3), (T5, I5, 4), (T6, I6, 5), (T7, I7, 6), (T8, I8, 7));
 impl<const LEN: usize, T: for<'a> TryToBytesDynamic<&'a I>, I: AsRef<I>> TryToBytesDynamic<I> for [ T; LEN ]
 where
     for<'a> <T as TryToBytesDynamic<&'a I>>::Error: 'static,
