@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    09 Oct 2023, 16:44:00
+//    09 Oct 2023, 19:28:59
 //  Auto updated?
 //    Yes
 // 
@@ -367,8 +367,62 @@ pub mod procedural {
     ///       reader : [ u8; 10 ],
     ///   }
     ///   ```
+    /// - `#[bytes(generate_refs = <true|false>)]`: Determines whether to generate the "reference
+    ///   implementation", i.e., implementations for a reference of the input type. This is
+    ///   typically desired for compatability with the library array/vector parser/serializer, and
+    ///   should only be disabled if your input type does not implement [`Clone`] or there's a more
+    ///   efficient way than cloning it to process a reference to it.
+    ///   
+    ///   **Example**:
+    ///   ```rust
+    ///   # use std::io::Read;
+    ///   # use bytes::{NoInput, TryFromBytesDynamic};
+    ///   // Some non-clonable type
+    ///   struct Helper;
+    ///   impl TryFromBytesDynamic<NoInput> for Helper {
+    ///       type Error = std::convert::Infallible;
+    ///       
+    ///       #[inline]
+    ///       fn try_from_bytes_dynamic(_input: NoInput, _reader: impl Read) -> Result<Self, Self::Error> {
+    ///           Ok(Self)
+    ///       }
+    ///   }
+    ///   
+    ///   #[derive(TryFromBytesDynamic)]
+    ///   #[bytes(dynamic_ty = "Helper", generate_refs = false)]
+    ///   struct Example {
+    ///       // Without `generate_refs`, this would've errored
+    ///       #[bytes]
+    ///       helper : Helper,
+    ///   }
+    ///   // Instead, implement our own for good practise
+    ///   impl TryFromBytesDynamic<&Helper> for Example {
+    ///       type Error = bytes::from_bytes::Error;
+    ///       
+    ///       #[inline]
+    ///       fn try_from_bytes_dynamic(_input: &Helper, reader: impl Read) -> Result<Self, Self::Error> {
+    ///           // We can rely on the generated one using another method of getting the input there
+    ///           Self::try_from_bytes_dynamic(Helper, reader)
+    ///       }
+    ///   }
+    ///   ```
     /// 
     /// ### Field-level attributes
+    /// - `#[bytes(enabled = <true|false>)`: Determines whether to parse/serialize this field.
+    ///   This can be used in case `#[bytes(...)` needs to be given, but you don't want to enable
+    ///   the parser/serializer; for example, you want to enable _only_ the parser/serializer but
+    ///   not the other one (see the global `from`- and `to`-fields).
+    ///   
+    ///   **Example:**
+    ///   ```rust
+    ///   # use bytes::TryFromBytesDynamic;
+    ///   #[derive(TryFromBytesDynamic)]
+    ///   struct Example {
+    ///       // We still don't parse this field!
+    ///       #[bytes(enabled = false)]
+    ///       not_parsed : std::path::PathBuf,
+    ///   }
+    ///   ```
     /// - `#[bytes(input = <EXPR>)]`: Defines that the field uses
     ///   [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) instead of
     ///   [`TryFromBytes`](struct@crate::TryFromBytes) to provide the internal parser, and then

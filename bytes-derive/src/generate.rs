@@ -4,7 +4,7 @@
 //  Created:
 //    02 Oct 2023, 19:52:06
 //  Last edited:
-//    04 Oct 2023, 21:56:41
+//    09 Oct 2023, 19:18:08
 //  Auto updated?
 //    Yes
 // 
@@ -125,8 +125,27 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
         }
     };
 
+    // If told to do so, generate refs
+    let full_impl: TokenStream2 = if info.metadata.generate_refs {
+        quote! {
+            #parser_impl
+
+            #[automatically_derived]
+            impl #impl_generics ::bytes::from_bytes::TryFromBytesDynamic<&#dynamic_ty> for #name #ty_generics #where_clause {
+                type Error = ::bytes::from_bytes::Error;
+    
+                fn try_from_bytes_dynamic(#dynamic_name: &#dynamic_ty, mut #input_name: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
+                    // Refer to the main impl
+                    Self::try_from_bytes_dynamic(<&#dynamic_ty as ::std::clone::Clone>::clone(&#dynamic_name), #input_name)
+                }
+            }
+        }
+    } else {
+        parser_impl
+    };
+
     // Done!
-    parser_impl
+    full_impl
 }
 
 
@@ -226,6 +245,26 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
         }
     };
 
+    // If told to do so, generate refs
+    let full_impl: TokenStream2 = if info.metadata.generate_refs {
+        quote! {
+            #parser_impl
+
+            #[automatically_derived]
+            impl #impl_generics ::bytes::to_bytes::TryToBytesDynamic<&#dynamic_ty> for #name #ty_generics #where_clause {
+                type Error = ::bytes::to_bytes::Error;
+
+                #[inline]
+                fn try_to_bytes_dynamic(&self, #dynamic_name: &#dynamic_ty, mut #input_name: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {
+                    // Refer to the main implementation using a clone
+                    self.try_to_bytes_dynamic(<&#dynamic_ty as ::std::clone::Clone>::clone(&#dynamic_name), #input_name)
+                }
+            }
+        }
+    } else {
+        parser_impl
+    };
+
     // Done!
-    parser_impl
+    full_impl
 }

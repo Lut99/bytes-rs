@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:12:16
 //  Last edited:
-//    09 Oct 2023, 16:49:39
+//    09 Oct 2023, 19:11:22
 //  Auto updated?
 //    Yes
 // 
@@ -77,13 +77,15 @@ impl TryToBytesDynamicInfo {
 #[derive(Clone)]
 pub struct MetadataInfo {
     /// The name of the type.
-    pub name         : Ident,
+    pub name          : Ident,
     /// The name of the `reader`/`writer`-variable.
-    pub input_name   : Ident,
+    pub input_name    : Ident,
     /// The name of the dynamic input.
-    pub dynamic_name : Ident,
+    pub dynamic_name  : Ident,
     /// The type of the dynamic input, together with its "actual" Span.
-    pub dynamic_ty   : (Type, Span),
+    pub dynamic_ty    : (Type, Span),
+    /// Whether to generate reference-implementations (i.e., `&I` and `&mut I`) or not.
+    pub generate_refs : bool,
 }
 impl MetadataInfo {
     /// Generates default metadata info for the parser.
@@ -122,6 +124,7 @@ impl MetadataInfo {
                     segments,
                 },
             }), Span::call_site()),
+            generate_refs : true,
         }
     }
 

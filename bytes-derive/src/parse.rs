@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:11:47
 //  Last edited:
-//    04 Oct 2023, 21:55:15
+//    09 Oct 2023, 19:12:19
 //  Auto updated?
 //    Yes
 // 
@@ -202,6 +202,11 @@ fn parse_try_from_bytes_dynamic(is_parser: bool, attrs: Vec<Attribute>, name: Id
                 } else if allow_dynamic && nv.path.is_ident("dynamic_ty") {
                     // Store the value as a type
                     info.metadata.dynamic_ty = parse_expr_as_str_lit_type(nv.value)?;
+                    Ok(())
+
+                } else if nv.path.is_ident("generate_refs") {
+                    // Parse the value as a boolean literal
+                    info.metadata.generate_refs = parse_expr_as_bool_lit(nv.value)?.value;
                     Ok(())
 
                 } else {
