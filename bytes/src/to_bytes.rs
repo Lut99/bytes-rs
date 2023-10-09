@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 11:30:12
 //  Last edited:
-//    09 Oct 2023, 12:21:37
+//    09 Oct 2023, 15:50:33
 //  Auto updated?
 //    Yes
 // 
@@ -21,12 +21,669 @@ use crate::order::{BigEndian, Endianness, LittleEndian};
 
 
 /***** HELPER MACROS *****/
-/// Translates a list of types into a list of unit-types.
-macro_rules! unitify {
-    // Trivial base-case
-    ($fty:ty) => { () };
-    // Recursive case
-    ($fty:ty, $($tys:ty),+) => { (), unitify!($($tys),+) };
+/// Implements [`TryToBytesDynamic`] for a primitive type.
+macro_rules! try_to_bytes_dynamic_primitive_impl {
+    // Special case: characters
+    (char) => {
+        impl TryToBytesDynamic<()> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in native endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: Any input to configure this serializer, which is nothing.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::TryToBytesDynamic as _;
+            /// 
+            /// // We parse using native endianness, so test with that in mind
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(buf, [0x00, 0x00, 0x00, 0x41]);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(buf, [0x41, 0x00, 0x00, 0x00]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: (), writer: impl Write) -> Result<(), Self::Error> {
+                // Serialize as a u32
+                (*self as u32).try_to_bytes_dynamic(input, writer)
+            }
+        }
+        impl TryToBytesDynamic<Endianness> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines if we will serialize the [`char`] in big-endian or little-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryToBytesDynamic as _};
+            /// 
+            /// fn serialize<const LEN: usize>(value: char, endianness: Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            ///     let mut buf: [u8; LEN] = [0; LEN];
+            ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
+            ///     Ok(buf)
+            /// }
+            /// 
+            /// assert_eq!(serialize::<4>('A', Endianness::Big).unwrap(), [ 0x00, 0x00, 0x00, 0x41 ]);
+            /// assert_eq!(serialize::<4>('A', Endianness::Little).unwrap(), [ 0x41, 0x00, 0x00, 0x00 ]);
+            /// 
+            /// assert!(matches!(serialize::<3>('A', Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: Endianness, writer: impl Write) -> Result<(), Self::Error> {
+                // Serialize as a u32
+                (*self as u32).try_to_bytes_dynamic(input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&Endianness> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines if we will serialize the [`char`] in big-endian or little-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryToBytesDynamic as _};
+            /// 
+            /// fn serialize<const LEN: usize>(value: char, endianness: &Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            ///     let mut buf: [u8; LEN] = [0; LEN];
+            ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
+            ///     Ok(buf)
+            /// }
+            /// 
+            /// assert_eq!(serialize::<4>('A', &Endianness::Big).unwrap(), [ 0x00, 0x00, 0x00, 0x41 ]);
+            /// assert_eq!(serialize::<4>('A', &Endianness::Little).unwrap(), [ 0x41, 0x00, 0x00, 0x00 ]);
+            /// 
+            /// assert!(matches!(serialize::<3>('A', &Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', &Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &Endianness, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut Endianness> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines if we will serialize the [`char`] in big-endian or little-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryToBytesDynamic as _};
+            /// 
+            /// fn serialize<const LEN: usize>(value: char, endianness: &mut Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            ///     let mut buf: [u8; LEN] = [0; LEN];
+            ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
+            ///     Ok(buf)
+            /// }
+            /// 
+            /// assert_eq!(serialize::<4>('A', &mut Endianness::Big).unwrap(), [ 0x00, 0x00, 0x00, 0x41 ]);
+            /// assert_eq!(serialize::<4>('A', &mut Endianness::Little).unwrap(), [ 0x41, 0x00, 0x00, 0x00 ]);
+            /// 
+            /// assert!(matches!(serialize::<3>('A', &mut Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', &mut Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut Endianness, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<BigEndian> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines we will serialize the [`char`] in big-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x00, 0x00, 0x00, 0x41 ]);
+            /// 
+            /// let mut buf: [u8; 3] = [0; 3];
+            /// assert!(matches!('A'.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: BigEndian, writer: impl Write) -> Result<(), Self::Error> {
+                // Serialize as a u32
+                (*self as u32).try_to_bytes_dynamic(input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&BigEndian> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines we will serialize the [`char`] in big-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(&BigEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x00, 0x00, 0x00, 0x41 ]);
+            /// 
+            /// let mut buf: [u8; 3] = [0; 3];
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &BigEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut BigEndian> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines we will serialize the [`char`] in big-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x00, 0x00, 0x00, 0x41 ]);
+            /// 
+            /// let mut buf: [u8; 3] = [0; 3];
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut BigEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<LittleEndian> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines we will serialize the [`char`] in little-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(LittleEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x41, 0x00, 0x00, 0x00 ]);
+            /// 
+            /// let mut buf: [u8; 3] = [0; 3];
+            /// assert!(matches!('A'.try_to_bytes_dynamic(LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
+                // Serialize as a u32
+                (*self as u32).try_to_bytes_dynamic(input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&LittleEndian> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines we will serialize the [`char`] in little-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x41, 0x00, 0x00, 0x00 ]);
+            /// 
+            /// let mut buf: [u8; 3] = [0; 3];
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut LittleEndian> for char {
+            type Error = Error;
+        
+            /// Serializes this character to the given byte stream.
+            /// 
+            /// Note that individual [`char`]s are always encoded as [`u32`]s.
+            /// 
+            /// This serializer serializes the [`char`] in little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines we will serialize the [`char`] in little-endian byte order.
+            /// - `writer`: The [`Write`]r to serialize to.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to serialize the equivalent [`u32`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 4] = [0; 4];
+            /// 'A'.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x41, 0x00, 0x00, 0x00 ]);
+            /// 
+            /// let mut buf: [u8; 3] = [0; 3];
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }        
+    };
+
+    // Primitives
+    ($pty:ident) => {
+        impl TryToBytesDynamic<()> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to native endianness.
+            /// 
+            /// To use a specific endianness, give [`BigEndian`] or [`LittleEndian`] as input.
+            /// 
+            /// # Arguments
+            /// - `input`: Ignored, since this parser does not assume input.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::TryToBytesDynamic as _;
+            /// 
+            /// // We parse using native endianness, so test with that in mind
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(buf, [0x00, 0x2A]);
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(buf, [0x2A, 0x00]);
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
+                // Simply call the trait thingy
+                match writer.write_all(self.to_ne_bytes().as_ref()) {
+                    Ok(_)    => Ok(()),
+                    Err(err) => Err(Error::Write { err }),
+                }
+            }
+        }
+        impl TryToBytesDynamic<Endianness> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to a dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines whether we serialize to [big-endian](BigEndian) or [little-endian](LittleEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryToBytesDynamic as _};
+            /// 
+            /// fn serialize<const LEN: usize>(value: u16, endianness: Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            ///     let mut buf: [u8; LEN] = [0; LEN];
+            ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
+            ///     Ok(buf)
+            /// }
+            /// 
+            /// assert_eq!(serialize::<2>(42, Endianness::Big).unwrap(), [ 0x00, 0x2A ]);
+            /// assert_eq!(serialize::<2>(42, Endianness::Little).unwrap(), [ 0x2A, 0x00 ]);
+            /// 
+            /// assert!(matches!(serialize::<1>(42, Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: Endianness, writer: impl Write) -> Result<(), Self::Error> {
+                // Delegate to the hardcoded implementations
+                match input {
+                    Endianness::Big    => self.try_to_bytes_dynamic(BigEndian, writer),
+                    Endianness::Little => self.try_to_bytes_dynamic(LittleEndian, writer),
+                }
+            }
+        }
+        impl TryToBytesDynamic<&Endianness> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to a dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines whether we serialize to [big-endian](BigEndian) or [little-endian](LittleEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryToBytesDynamic as _};
+            /// 
+            /// fn serialize<const LEN: usize>(value: u16, endianness: &Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            ///     let mut buf: [u8; LEN] = [0; LEN];
+            ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
+            ///     Ok(buf)
+            /// }
+            /// 
+            /// assert_eq!(serialize::<2>(42, &Endianness::Big).unwrap(), [ 0x00, 0x2A ]);
+            /// assert_eq!(serialize::<2>(42, &Endianness::Little).unwrap(), [ 0x2A, 0x00 ]);
+            /// 
+            /// assert!(matches!(serialize::<1>(42, &Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, &Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &Endianness, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut Endianness> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to a dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines whether we serialize to [big-endian](BigEndian) or [little-endian](LittleEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryToBytesDynamic as _};
+            /// 
+            /// fn serialize<const LEN: usize>(value: u16, endianness: &mut Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            ///     let mut buf: [u8; LEN] = [0; LEN];
+            ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
+            ///     Ok(buf)
+            /// }
+            /// 
+            /// assert_eq!(serialize::<2>(42, &mut Endianness::Big).unwrap(), [ 0x00, 0x2A ]);
+            /// assert_eq!(serialize::<2>(42, &mut Endianness::Little).unwrap(), [ 0x2A, 0x00 ]);
+            /// 
+            /// assert!(matches!(serialize::<1>(42, &mut Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, &mut Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut Endianness, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<BigEndian> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines that we serialize to [big-endian](BigEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x00, 0x2A ]);
+            /// 
+            /// let mut buf: [u8; 1] = [0; 1];
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, _input: BigEndian, mut writer: impl Write) -> Result<(), Self::Error> {
+                // Simply call the trait thingy
+                match writer.write_all(self.to_be_bytes().as_ref()) {
+                    Ok(_)    => Ok(()),
+                    Err(err) => Err(Error::Write { err }),
+                }
+            }
+        }
+        impl TryToBytesDynamic<&BigEndian> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines that we serialize to [big-endian](BigEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(&BigEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x00, 0x2A ]);
+            /// 
+            /// let mut buf: [u8; 1] = [0; 1];
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &BigEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut BigEndian> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines that we serialize to [big-endian](BigEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x00, 0x2A ]);
+            /// 
+            /// let mut buf: [u8; 1] = [0; 1];
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut BigEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<LittleEndian> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines that we serialize to [little-endian](LittleEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(LittleEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x2A, 0x00 ]);
+            /// 
+            /// let mut buf: [u8; 1] = [0; 1];
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, _input: LittleEndian, mut writer: impl Write) -> Result<(), Self::Error> {
+                // Simply call the trait thingy
+                match writer.write_all(self.to_le_bytes().as_ref()) {
+                    Ok(_)    => Ok(()),
+                    Err(err) => Err(Error::Write { err }),
+                }
+            }
+        }
+        impl TryToBytesDynamic<&LittleEndian> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines that we serialize to [little-endian](LittleEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x2A, 0x00 ]);
+            /// 
+            /// let mut buf: [u8; 1] = [0; 1];
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }
+        impl TryToBytesDynamic<&mut LittleEndian> for $pty {
+            type Error = Error;
+        
+            /// Serializes a primitive to little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines that we serialize to [little-endian](LittleEndian) byte order.
+            /// - `writer`: The [`Write`]r to which we serialize.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to write to the given writer.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryToBytesDynamic as _};
+            /// 
+            /// let mut buf: [u8; 2] = [0; 2];
+            /// 42u16.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]).unwrap();
+            /// assert_eq!(buf, [ 0x2A, 0x00 ]);
+            /// 
+            /// let mut buf: [u8; 1] = [0; 1];
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// ```
+            #[inline]
+            fn try_to_bytes_dynamic(&self, input: &mut LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
+                self.try_to_bytes_dynamic(*input, writer)
+            }
+        }        
+    };
 }
 
 /// Implements [`TryToBytesDynamic`] for a tuple of the given size.
@@ -322,28 +979,6 @@ impl error::Error for Error {
 
 
 
-/***** HELPERS *****/
-/// Helper trait for selecting which types we mean when we implement [`TryToBytesDynamic`] for primitives.
-trait PrimitiveToBytes: num_traits::ToBytes {}
-impl PrimitiveToBytes for u8 {}
-impl PrimitiveToBytes for i8 {}
-impl PrimitiveToBytes for u16 {}
-impl PrimitiveToBytes for i16 {}
-impl PrimitiveToBytes for u32 {}
-impl PrimitiveToBytes for i32 {}
-impl PrimitiveToBytes for u64 {}
-impl PrimitiveToBytes for i64 {}
-impl PrimitiveToBytes for u128 {}
-impl PrimitiveToBytes for i128 {}
-impl PrimitiveToBytes for usize {}
-impl PrimitiveToBytes for isize {}
-impl PrimitiveToBytes for f32 {}
-impl PrimitiveToBytes for f64 {}
-
-
-
-
-
 /***** AUXILLARY *****/
 /// Allows a type to be serialized to bytes.
 /// 
@@ -384,8 +1019,29 @@ pub trait TryToBytes: TryToBytesDynamic<()> {
     /// assert_eq!(buf, []);
     /// ```
     fn try_to_bytes(&self, writer: impl Write) -> Result<(), Self::Error>;
+
+    /// Convenience function that writes to a vector.
+    /// 
+    /// # Returns
+    /// A vector of bytes ([`Vec<u8>`]) that contains the serialized result.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to serialize the given bytes.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{BigEndian, TryToBytes as _};
+    /// 
+    /// assert_eq!("Hello, world!".try_to_bytes_vec().unwrap(), vec![ 0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21 ]);
+    /// ```
+    #[inline]
+    fn try_to_bytes_vec(&self) -> Result<Vec<u8>, Self::Error> {
+        let mut res: Vec<u8> = vec![];
+        self.try_to_bytes(&mut res)?;
+        Ok(res)
+    }
 }
-impl<T: TryToBytesDynamic<()>> TryToBytes for T {
+impl<T: ?Sized + TryToBytesDynamic<()>> TryToBytes for T {
     /// Automatic implementation for types implementing [`TryToBytesDynamic`] but require no input (i.e., `()`).
     #[inline]
     fn try_to_bytes(&self, writer: impl Write) -> Result<(), Self::Error> {
@@ -442,454 +1098,48 @@ pub trait TryToBytesDynamic<I> {
     /// assert_eq!(buf, [ 0x00, 0x2A ]);
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error>;
+
+    /// Convenience function that writes to a vector.
+    /// 
+    /// # Arguments
+    /// - `input`: The additional input needed to make sense of this, like some length.
+    /// 
+    /// # Returns
+    /// A vector of bytes ([`Vec<u8>`]) that contains the serialized result.
+    /// 
+    /// # Errors
+    /// This function may error if we failed to serialize the given bytes.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{BigEndian, TryToBytesDynamic as _};
+    /// 
+    /// assert_eq!(42u16.try_to_bytes_dynamic_vec(BigEndian).unwrap(), vec![ 0x00, 0x2A ]);
+    /// ```
+    #[inline]
+    fn try_to_bytes_dynamic_vec(&self, input: I) -> Result<Vec<u8>, Self::Error> {
+        let mut res: Vec<u8> = vec![];
+        self.try_to_bytes_dynamic(input, &mut res)?;
+        Ok(res)
+    }
 }
 
 // Implement it for primitives
-impl<T: PrimitiveToBytes> TryToBytesDynamic<()> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to native endianness.
-    /// 
-    /// To use a specific endianness, give [`BigEndian`] or [`LittleEndian`] as input.
-    /// 
-    /// # Arguments
-    /// - `input`: Ignored, since this parser does not assume input.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::TryToBytesDynamic as _;
-    /// 
-    /// // We parse using native endianness, so test with that in mind
-    /// let mut buf: [u8; 2] = [0; 2];
-    /// 42u16.try_to_bytes_dynamic((), &mut buf[..]).unwrap();
-    /// #[cfg(target_endian = "big")]
-    /// assert_eq!(buf, [0x00, 0x2A]);
-    /// #[cfg(target_endian = "little")]
-    /// assert_eq!(buf, [0x2A, 0x00]);
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply call the trait thingy
-        match writer.write_all(self.to_ne_bytes().as_ref()) {
-            Ok(_)    => Ok(()),
-            Err(err) => Err(Error::Write { err }),
-        }
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<Endianness> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to a dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines whether we serialize to [big-endian](BigEndian) or [little-endian](LittleEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: Endianness, writer: impl Write) -> Result<(), Self::Error> {
-        // Delegate to the hardcoded implementations
-        match input {
-            Endianness::Big    => self.try_to_bytes_dynamic(BigEndian, writer),
-            Endianness::Little => self.try_to_bytes_dynamic(LittleEndian, writer),
-        }
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<&Endianness> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to a dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines whether we serialize to [big-endian](BigEndian) or [little-endian](LittleEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &Endianness, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<&mut Endianness> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to a dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines whether we serialize to [big-endian](BigEndian) or [little-endian](LittleEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &mut Endianness, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<BigEndian> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines that we serialize to [big-endian](BigEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, _input: BigEndian, mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply call the trait thingy
-        match writer.write_all(self.to_be_bytes().as_ref()) {
-            Ok(_)    => Ok(()),
-            Err(err) => Err(Error::Write { err }),
-        }
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<&BigEndian> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines that we serialize to [big-endian](BigEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &BigEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<&mut BigEndian> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines that we serialize to [big-endian](BigEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &mut BigEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<LittleEndian> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines that we serialize to [little-endian](LittleEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, _input: LittleEndian, mut writer: impl Write) -> Result<(), Self::Error> {
-        // Simply call the trait thingy
-        match writer.write_all(self.to_le_bytes().as_ref()) {
-            Ok(_)    => Ok(()),
-            Err(err) => Err(Error::Write { err }),
-        }
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<&LittleEndian> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines that we serialize to [little-endian](LittleEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl<T: PrimitiveToBytes> TryToBytesDynamic<&mut LittleEndian> for T {
-    type Error = Error;
-
-    /// Serializes a primitive to little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines that we serialize to [little-endian](LittleEndian) byte order.
-    /// - `writer`: The [`Write`]r to which we serialize.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to write to the given writer.
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &mut LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl TryToBytesDynamic<()> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in native endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: Any input to configure this serializer, which is nothing.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// todo!();
-    /// ```
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: (), writer: impl Write) -> Result<(), Self::Error> {
-        // Serialize as a u32
-        (*self as u32).try_to_bytes_dynamic(input, writer)
-    }
-}
-impl TryToBytesDynamic<Endianness> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines if we will serialize the [`char`] in big-endian or little-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: Endianness, writer: impl Write) -> Result<(), Self::Error> {
-        // Serialize as a u32
-        (*self as u32).try_to_bytes_dynamic(input, writer)
-    }
-}
-impl TryToBytesDynamic<&Endianness> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines if we will serialize the [`char`] in big-endian or little-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &Endianness, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl TryToBytesDynamic<&mut Endianness> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines if we will serialize the [`char`] in big-endian or little-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &mut Endianness, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl TryToBytesDynamic<BigEndian> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines we will serialize the [`char`] in big-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: BigEndian, writer: impl Write) -> Result<(), Self::Error> {
-        // Serialize as a u32
-        (*self as u32).try_to_bytes_dynamic(input, writer)
-    }
-}
-impl TryToBytesDynamic<&BigEndian> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines we will serialize the [`char`] in big-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &BigEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl TryToBytesDynamic<&mut BigEndian> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines we will serialize the [`char`] in big-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &mut BigEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl TryToBytesDynamic<LittleEndian> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines we will serialize the [`char`] in little-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
-        // Serialize as a u32
-        (*self as u32).try_to_bytes_dynamic(input, writer)
-    }
-}
-impl TryToBytesDynamic<&LittleEndian> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines we will serialize the [`char`] in little-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
-impl TryToBytesDynamic<&mut LittleEndian> for char {
-    type Error = Error;
-
-    /// Serializes this character to the given byte stream.
-    /// 
-    /// Note that individual [`char`]s are always encoded as [`u32`]s.
-    /// 
-    /// This serializer serializes the [`char`] in little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines we will serialize the [`char`] in little-endian byte order.
-    /// - `writer`: The [`Write`]r to serialize to.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to serialize the equivalent [`u32`].
-    #[inline]
-    fn try_to_bytes_dynamic(&self, input: &mut LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
-        self.try_to_bytes_dynamic(*input, writer)
-    }
-}
+try_to_bytes_dynamic_primitive_impl!(u8);
+try_to_bytes_dynamic_primitive_impl!(i8);
+try_to_bytes_dynamic_primitive_impl!(u16);
+try_to_bytes_dynamic_primitive_impl!(i16);
+try_to_bytes_dynamic_primitive_impl!(u32);
+try_to_bytes_dynamic_primitive_impl!(i32);
+try_to_bytes_dynamic_primitive_impl!(u64);
+try_to_bytes_dynamic_primitive_impl!(i64);
+try_to_bytes_dynamic_primitive_impl!(u128);
+try_to_bytes_dynamic_primitive_impl!(i128);
+try_to_bytes_dynamic_primitive_impl!(usize);
+try_to_bytes_dynamic_primitive_impl!(isize);
+try_to_bytes_dynamic_primitive_impl!(f32);
+try_to_bytes_dynamic_primitive_impl!(f64);
+try_to_bytes_dynamic_primitive_impl!(char);
 
 // Implement it for tightly-packed containers
 try_to_bytes_dynamic_tuple_impl!();
@@ -920,7 +1170,14 @@ where
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryToBytesDynamic as _};
+    /// 
+    /// let mut buf: [u8; 4] = [0; 4];
+    /// [ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [ 0x00, 0x2A, 0x00, 0x2A ]);
+    /// 
+    /// let mut buf: [u8; 3] = [0; 3];
+    /// assert!(matches!([ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Field { .. })));
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
         // Simply serialize all of them in-order
@@ -934,7 +1191,7 @@ where
 }
 impl<T: for<'a> TryToBytesDynamic<&'a I>, I: AsRef<I>> TryToBytesDynamic<I> for [ T ]
 where
-for<'a> <T as TryToBytesDynamic<&'a I>>::Error: 'static,
+    for<'a> <T as TryToBytesDynamic<&'a I>>::Error: 'static,
 {
     type Error = Error;
 
@@ -951,7 +1208,14 @@ for<'a> <T as TryToBytesDynamic<&'a I>>::Error: 'static,
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryToBytesDynamic as _};
+    /// 
+    /// let mut buf: [u8; 4] = [0; 4];
+    /// ([ 42u16, 42u16 ][..]).try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [ 0x00, 0x2A, 0x00, 0x2A ]);
+    /// 
+    /// let mut buf: [u8; 3] = [0; 3];
+    /// assert!(matches!(([ 42u16, 42u16 ][..]).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Field { .. })));
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
         // Simply serialize all of them in-order
@@ -982,7 +1246,14 @@ where
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::{BigEndian, TryToBytesDynamic as _};
+    /// 
+    /// let mut buf: [u8; 4] = [0; 4];
+    /// vec![ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [ 0x00, 0x2A, 0x00, 0x2A ]);
+    /// 
+    /// let mut buf: [u8; 3] = [0; 3];
+    /// assert!(matches!(vec![ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Field { .. })));
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
         // Simply serialize all of them in-order
@@ -1010,7 +1281,14 @@ impl TryToBytesDynamic<()> for str {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryToBytesDynamic as _;
+    /// 
+    /// let mut buf: [u8; 13] = [0; 13];
+    /// "Hello, world!".try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
+    /// 
+    /// let mut buf: [u8; 12] = [0; 12];
+    /// assert!(matches!("Hello, world!".try_to_bytes_dynamic((), &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
@@ -1034,7 +1312,15 @@ impl TryToBytesDynamic<()> for Cow<'_, str> {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// # use std::borrow::Cow;
+    /// use bytes::TryToBytesDynamic as _;
+    /// 
+    /// let mut buf: [u8; 13] = [0; 13];
+    /// Cow::Borrowed("Hello, world!").try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
+    /// 
+    /// let mut buf: [u8; 12] = [0; 12];
+    /// assert!(matches!(Cow::Borrowed("Hello, world!").try_to_bytes_dynamic((), &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
@@ -1058,7 +1344,14 @@ impl TryToBytesDynamic<()> for String {
     /// 
     /// # Example
     /// ```rust
-    /// todo!();
+    /// use bytes::TryToBytesDynamic as _;
+    /// 
+    /// let mut buf: [u8; 13] = [0; 13];
+    /// "Hello, world!".to_string().try_to_bytes_dynamic((), &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
+    /// 
+    /// let mut buf: [u8; 12] = [0; 12];
+    /// assert!(matches!("Hello, world!".to_string().try_to_bytes_dynamic((), &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: (), mut writer: impl Write) -> Result<(), Self::Error> {
@@ -1066,5 +1359,63 @@ impl TryToBytesDynamic<()> for String {
             Ok(_)    => Ok(()),
             Err(err) => Err(Error::Write { err }),
         }
+    }
+}
+
+// Generalise over references
+impl<T: TryToBytesDynamic<I>, I> TryToBytesDynamic<I> for &T {
+    type Error = T::Error;
+
+    /// Serializer for a reference to a type that is serializable.
+    /// 
+    /// # Arguments
+    /// - `input`: The input to the type such that it may be serialized.
+    /// - `writer`: The [`Write`]r to which we serialize.
+    /// 
+    /// # Errors
+    /// This function may error if the type's serializer errors.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{BigEndian, TryToBytesDynamic as _};
+    /// 
+    /// let mut buf: [u8; 2] = [0; 2];
+    /// (&42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [0x00, 0x2A]);
+    /// 
+    /// let mut buf: [u8; 1] = [0; 1];
+    /// assert!(matches!((&42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// ```
+    #[inline]
+    fn try_to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error> {
+        <T as TryToBytesDynamic<I>>::try_to_bytes_dynamic(*self, input, writer)
+    }
+}
+impl<T: TryToBytesDynamic<I>, I> TryToBytesDynamic<I> for &mut T {
+    type Error = T::Error;
+
+    /// Serializer for a mutable reference to a type that is serializable.
+    /// 
+    /// # Arguments
+    /// - `input`: The input to the type such that it may be serialized.
+    /// - `writer`: The [`Write`]r to which we serialize.
+    /// 
+    /// # Errors
+    /// This function may error if the type's serializer errors.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use bytes::{BigEndian, TryToBytesDynamic as _};
+    /// 
+    /// let mut buf: [u8; 2] = [0; 2];
+    /// (&mut 42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]).unwrap();
+    /// assert_eq!(buf, [0x00, 0x2A]);
+    /// 
+    /// let mut buf: [u8; 1] = [0; 1];
+    /// assert!(matches!((&mut 42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// ```
+    #[inline]
+    fn try_to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error> {
+        <T as TryToBytesDynamic<I>>::try_to_bytes_dynamic(*self, input, writer)
     }
 }

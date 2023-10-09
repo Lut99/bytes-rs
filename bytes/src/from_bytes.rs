@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    09 Oct 2023, 11:42:09
+//    09 Oct 2023, 15:57:06
 //  Auto updated?
 //    Yes
 // 
@@ -28,6 +28,644 @@ macro_rules! unitify {
     ($fty:ty) => { () };
     // Recursive case
     ($fty:ty, $($tys:ty),+) => { (), unitify!($($tys),+) };
+}
+
+/// Implements [`TryFromBytesDynamic`] for a primitive type.
+macro_rules! try_from_bytes_dynamic_primitive_impl {
+    // Special case for characters
+    (char) => {
+        impl TryFromBytesDynamic<()> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using native endianness. If you want to commit to a particular one, give [`BigEndian`] or [`LittleEndian`] as input.
+            /// 
+            /// # Arguments
+            /// - `input`: Any configurable input to this parser, which is none.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::TryFromBytesDynamic as _;
+            /// 
+            /// // This parses with native endianness, so we test based on which endianness is used
+            /// #[cfg(target_endian = "big")]
+            /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+            /// #[cfg(target_endian = "little")]
+            /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+            /// 
+            /// // Note that this conversion may fail
+            /// assert!(matches!(char::try_from_bytes_dynamic((), &[ 0xFF, 0xFF, 0xFF, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            fn try_from_bytes_dynamic(input: (), reader: impl Read) -> Result<Self, Self::Error> {
+                // First, parse a u32 as base
+                let res: u32 = u32::try_from_bytes_dynamic(input, reader)?;
+        
+                // Then, parse as char
+                match char::from_u32(res) {
+                    Some(res) => Ok(res),
+                    None      => Err(Error::NonUtf8Char { raw: res }),
+                }
+            }
+        }
+        impl TryFromBytesDynamic<Endianness> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines if we will be parsing the [`u32`] in big-endian or little-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryFromBytesDynamic as _};
+            /// 
+            /// fn parse(input: &[u8], endianness: Endianness) -> char {
+            ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
+            /// }
+            /// 
+            /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], Endianness::Big), 'A');
+            /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], Endianness::Little), 'A');
+            /// 
+            /// // Note that this conversion may fail
+            /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: Endianness, reader: impl Read) -> Result<Self, Self::Error> {
+                match input {
+                    Endianness::Big    => Self::try_from_bytes_dynamic(BigEndian, reader),
+                    Endianness::Little => Self::try_from_bytes_dynamic(LittleEndian, reader),
+                }
+            }
+        }
+        impl TryFromBytesDynamic<&Endianness> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines if we will be parsing the [`u32`] in big-endian or little-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryFromBytesDynamic as _};
+            /// 
+            /// fn parse(input: &[u8], endianness: &Endianness) -> char {
+            ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
+            /// }
+            /// 
+            /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], &Endianness::Big), 'A');
+            /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], &Endianness::Little), 'A');
+            /// 
+            /// // Note that this conversion may fail
+            /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &Endianness, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut Endianness> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines if we will be parsing the [`u32`] in big-endian or little-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryFromBytesDynamic as _};
+            /// 
+            /// fn parse(input: &[u8], endianness: &mut Endianness) -> char {
+            ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
+            /// }
+            /// 
+            /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], &mut Endianness::Big), 'A');
+            /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], &mut Endianness::Little), 'A');
+            /// 
+            /// // Note that this conversion may fail
+            /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut Endianness, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<BigEndian> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines we will be parsing the [`u32`] in big-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(char::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+            /// assert!(matches!(char::try_from_bytes_dynamic(BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                // First, parse a u32 as base
+                let res: u32 = u32::try_from_bytes_dynamic(input, reader)?;
+        
+                // Then, parse as char
+                match char::from_u32(res) {
+                    Some(res) => Ok(res),
+                    None      => Err(Error::NonUtf8Char { raw: res }),
+                }
+            }
+        }
+        impl TryFromBytesDynamic<&BigEndian> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines we will be parsing the [`u32`] in big-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(char::try_from_bytes_dynamic(&BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+            /// assert!(matches!(char::try_from_bytes_dynamic(&BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut BigEndian> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using big-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that determines we will be parsing the [`u32`] in big-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(char::try_from_bytes_dynamic(&mut BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
+            /// assert!(matches!(char::try_from_bytes_dynamic(&mut BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<LittleEndian> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines we will be parsing the [`u32`] in little-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(char::try_from_bytes_dynamic(LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+            /// assert!(matches!(char::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                // First, parse a u32 as base
+                let res: u32 = u32::try_from_bytes_dynamic(input, reader)?;
+        
+                // Then, parse as char
+                match char::from_u32(res) {
+                    Some(res) => Ok(res),
+                    None      => Err(Error::NonUtf8Char { raw: res }),
+                }
+            }
+        }
+        impl TryFromBytesDynamic<&LittleEndian> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines we will be parsing the [`u32`] in little-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(char::try_from_bytes_dynamic(&LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+            /// assert!(matches!(char::try_from_bytes_dynamic(&LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut LittleEndian> for char {
+            type Error = Error;
+        
+            /// Parses a single [`char`] from the given input stream.
+            /// 
+            /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
+            /// 
+            /// This parser parses the [`u32`] using little-endian byte order.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that determines we will be parsing the [`u32`] in little-endian byte order.
+            /// - `reader`: The [`Read`]er to read from.
+            /// 
+            /// # Returns
+            /// A new [`char`] parsed from the given `reader`.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(char::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
+            /// assert!(matches!(char::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }        
+    };
+
+    // General case for other primitives
+    ($pty:ident) => {
+        impl TryFromBytesDynamic<Endianness> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines what byte ordering we use to parse.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryFromBytesDynamic as _};
+            /// 
+            /// fn parse(input: &[u8], endianness: Endianness) -> u16 {
+            ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
+            /// }
+            /// 
+            /// assert_eq!(parse(&[ 0x00, 0x2A ], Endianness::Big), 42);
+            /// assert_eq!(parse(&[ 0x00, 0x2A ], Endianness::Little), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: Endianness, reader: impl Read) -> Result<Self, Self::Error> {
+                // Delegate to the hardcoded implementations
+                match input {
+                    Endianness::Big    => Self::try_from_bytes_dynamic(BigEndian, reader),
+                    Endianness::Little => Self::try_from_bytes_dynamic(LittleEndian, reader),
+                }
+            }
+        }
+        impl TryFromBytesDynamic<&Endianness> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines what byte ordering we use to parse.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryFromBytesDynamic as _};
+            /// 
+            /// fn parse(input: &[u8], endianness: &Endianness) -> u16 {
+            ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
+            /// }
+            /// 
+            /// assert_eq!(parse(&[ 0x00, 0x2A ], &Endianness::Big), 42);
+            /// assert_eq!(parse(&[ 0x00, 0x2A ], &Endianness::Little), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &Endianness, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut Endianness> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using dynamic endianness.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`Endianness`] that determines what byte ordering we use to parse.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{Endianness, TryFromBytesDynamic as _};
+            /// 
+            /// fn parse(input: &[u8], endianness: &mut Endianness) -> u16 {
+            ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
+            /// }
+            /// 
+            /// assert_eq!(parse(&[ 0x00, 0x2A ], &mut Endianness::Big), 42);
+            /// assert_eq!(parse(&[ 0x00, 0x2A ], &mut Endianness::Little), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut Endianness, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<BigEndian> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(u16::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(_input: BigEndian, mut reader: impl Read) -> Result<Self, Self::Error> {
+                // Attempt to read enough information
+                let mut bytes: [ u8; std::mem::size_of::<$pty>() ] = [ 0; std::mem::size_of::<$pty>() ];
+                if let Err(err) = reader.read_exact(&mut bytes) {
+                    return Err(Error::Read { err });
+                }
+        
+                // Now simply parse the bytes
+                Ok(Self::from_be_bytes(bytes))
+            }
+        }
+        impl TryFromBytesDynamic<&BigEndian> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(u16::try_from_bytes_dynamic(&BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut BigEndian> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{BigEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(u16::try_from_bytes_dynamic(&mut BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<LittleEndian> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(u16::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(_input: LittleEndian, mut reader: impl Read) -> Result<Self, Self::Error> {
+                // Attempt to read enough information
+                let mut bytes: [ u8; std::mem::size_of::<$pty>() ] = [ 0; std::mem::size_of::<$pty>() ];
+                if let Err(err) = reader.read_exact(&mut bytes) {
+                    return Err(Error::Read { err });
+                }
+        
+                // Now simply parse the bytes
+                Ok(Self::from_le_bytes(bytes))
+            }
+        }
+        impl TryFromBytesDynamic<&LittleEndian> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(u16::try_from_bytes_dynamic(&LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }
+        impl TryFromBytesDynamic<&mut LittleEndian> for $pty {
+            type Error = Error;
+        
+            /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
+            /// 
+            /// # Arguments
+            /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
+            /// - `reader`: The [`Read`]er to read the bytes to parse from.
+            /// 
+            /// # Returns
+            /// An instance of self that is parsed from the given stream of bytes.
+            /// 
+            /// # Errors
+            /// This function may error if we failed to read the required number of bytes from the given `reader`.
+            /// 
+            /// # Example
+            /// ```rust
+            /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
+            /// 
+            /// assert_eq!(u16::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
+            /// ```
+            #[inline]
+            fn try_from_bytes_dynamic(input: &mut LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
+                Self::try_from_bytes_dynamic(*input, reader)
+            }
+        }        
+    };
 }
 
 /// Implements [`TryFromBytesDynamic`] for a tuple of the given size.
@@ -547,635 +1185,21 @@ impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = 
         Ok(Self::from_ne_bytes(&bytes))
     }
 }
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<Endianness> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines what byte ordering we use to parse.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{Endianness, TryFromBytesDynamic as _};
-    /// 
-    /// fn parse(input: &[u8], endianness: Endianness) -> u16 {
-    ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
-    /// }
-    /// 
-    /// assert_eq!(parse(&[ 0x00, 0x2A ], Endianness::Big), 42);
-    /// assert_eq!(parse(&[ 0x00, 0x2A ], Endianness::Little), 10752);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: Endianness, reader: impl Read) -> Result<Self, Self::Error> {
-        // Delegate to the hardcoded implementations
-        match input {
-            Endianness::Big    => Self::try_from_bytes_dynamic(BigEndian, reader),
-            Endianness::Little => Self::try_from_bytes_dynamic(LittleEndian, reader),
-        }
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&Endianness> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines what byte ordering we use to parse.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{Endianness, TryFromBytesDynamic as _};
-    /// 
-    /// fn parse(input: &[u8], endianness: &Endianness) -> u16 {
-    ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
-    /// }
-    /// 
-    /// assert_eq!(parse(&[ 0x00, 0x2A ], &Endianness::Big), 42);
-    /// assert_eq!(parse(&[ 0x00, 0x2A ], &Endianness::Little), 10752);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &Endianness, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&mut Endianness> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines what byte ordering we use to parse.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{Endianness, TryFromBytesDynamic as _};
-    /// 
-    /// fn parse(input: &[u8], endianness: &mut Endianness) -> u16 {
-    ///     u16::try_from_bytes_dynamic(endianness, input).unwrap()
-    /// }
-    /// 
-    /// assert_eq!(parse(&[ 0x00, 0x2A ], &mut Endianness::Big), 42);
-    /// assert_eq!(parse(&[ 0x00, 0x2A ], &mut Endianness::Little), 10752);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &mut Endianness, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<BigEndian> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(u16::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(_input: BigEndian, mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Attempt to read enough information
-        // let mut bytes: [ u8; size_of::<T>() ] = [ 0; size_of::<T>() ];
-        let mut bytes: [ u8; LENGTH ] = [ 0; LENGTH ];
-        if let Err(err) = reader.read_exact(&mut bytes) {
-            return Err(Error::Read { err });
-        }
-
-        // Now simply parse the bytes
-        Ok(Self::from_be_bytes(&bytes))
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&BigEndian> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(u16::try_from_bytes_dynamic(&BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&mut BigEndian> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using big-endian ordering.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that decides we're parsing in big-endian byte ordering.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(u16::try_from_bytes_dynamic(&mut BigEndian, &[ 0x00, 0x2A ][..]).unwrap(), 42);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &mut BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<LittleEndian> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(u16::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(_input: LittleEndian, mut reader: impl Read) -> Result<Self, Self::Error> {
-        // Attempt to read enough information
-        // let mut bytes: [ u8; size_of::<T>() ] = [ 0; size_of::<T>() ];
-        let mut bytes: [ u8; LENGTH ] = [ 0; LENGTH ];
-        if let Err(err) = reader.read_exact(&mut bytes) {
-            return Err(Error::Read { err });
-        }
-
-        // Now simply parse the bytes
-        Ok(Self::from_le_bytes(&bytes))
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&LittleEndian> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(u16::try_from_bytes_dynamic(&LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl<const LENGTH: usize, T: PrimitiveFromBytes + num_traits::FromBytes<Bytes = [u8; LENGTH]>> TryFromBytesDynamic<&mut LittleEndian> for T {
-    type Error = Error;
-
-    /// Implements the TryFromBytesDynamic parser for primitives using little-endian ordering.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that decides we're parsing in little-endian byte ordering.
-    /// - `reader`: The [`Read`]er to read the bytes to parse from.
-    /// 
-    /// # Returns
-    /// An instance of self that is parsed from the given stream of bytes.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to read the required number of bytes from the given `reader`.
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(u16::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x00, 0x2A ][..]).unwrap(), 10752);
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &mut LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl TryFromBytesDynamic<()> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using native endianness. If you want to commit to a particular one, give [`BigEndian`] or [`LittleEndian`] as input.
-    /// 
-    /// # Arguments
-    /// - `input`: Any configurable input to this parser, which is none.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::TryFromBytesDynamic as _;
-    /// 
-    /// // This parses with native endianness, so we test based on which endianness is used
-    /// #[cfg(target_endian = "big")]
-    /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
-    /// #[cfg(target_endian = "little")]
-    /// assert_eq!(char::try_from_bytes_dynamic((), &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
-    /// 
-    /// // Note that this conversion may fail
-    /// assert!(matches!(char::try_from_bytes_dynamic((), &[ 0xFF, 0xFF, 0xFF, 0xFF ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    fn try_from_bytes_dynamic(input: (), reader: impl Read) -> Result<Self, Self::Error> {
-        // First, parse a u32 as base
-        let res: u32 = u32::try_from_bytes_dynamic(input, reader)?;
-
-        // Then, parse as char
-        match char::from_u32(res) {
-            Some(res) => Ok(res),
-            None      => Err(Error::NonUtf8Char { raw: res }),
-        }
-    }
-}
-impl TryFromBytesDynamic<Endianness> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines if we will be parsing the [`u32`] in big-endian or little-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{Endianness, TryFromBytesDynamic as _};
-    /// 
-    /// fn parse(input: &[u8], endianness: Endianness) -> char {
-    ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
-    /// }
-    /// 
-    /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], Endianness::Big), 'A');
-    /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], Endianness::Little), 'A');
-    /// 
-    /// // Note that this conversion may fail
-    /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: Endianness, reader: impl Read) -> Result<Self, Self::Error> {
-        match input {
-            Endianness::Big    => Self::try_from_bytes_dynamic(BigEndian, reader),
-            Endianness::Little => Self::try_from_bytes_dynamic(LittleEndian, reader),
-        }
-    }
-}
-impl TryFromBytesDynamic<&Endianness> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines if we will be parsing the [`u32`] in big-endian or little-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{Endianness, TryFromBytesDynamic as _};
-    /// 
-    /// fn parse(input: &[u8], endianness: &Endianness) -> char {
-    ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
-    /// }
-    /// 
-    /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], &Endianness::Big), 'A');
-    /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], &Endianness::Little), 'A');
-    /// 
-    /// // Note that this conversion may fail
-    /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &Endianness, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl TryFromBytesDynamic<&mut Endianness> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using dynamic endianness.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`Endianness`] that determines if we will be parsing the [`u32`] in big-endian or little-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{Endianness, TryFromBytesDynamic as _};
-    /// 
-    /// fn parse(input: &[u8], endianness: &mut Endianness) -> char {
-    ///     char::try_from_bytes_dynamic(endianness, input).unwrap()
-    /// }
-    /// 
-    /// assert_eq!(parse(&[ 0x00, 0x00, 0x00, 0x41 ], &mut Endianness::Big), 'A');
-    /// assert_eq!(parse(&[ 0x41, 0x00, 0x00, 0x00 ], &mut Endianness::Little), 'A');
-    /// 
-    /// // Note that this conversion may fail
-    /// assert!(matches!(char::try_from_bytes_dynamic(Endianness::Little, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &mut Endianness, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl TryFromBytesDynamic<BigEndian> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines we will be parsing the [`u32`] in big-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(char::try_from_bytes_dynamic(BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
-    /// assert!(matches!(char::try_from_bytes_dynamic(BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        // First, parse a u32 as base
-        let res: u32 = u32::try_from_bytes_dynamic(input, reader)?;
-
-        // Then, parse as char
-        match char::from_u32(res) {
-            Some(res) => Ok(res),
-            None      => Err(Error::NonUtf8Char { raw: res }),
-        }
-    }
-}
-impl TryFromBytesDynamic<&BigEndian> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines we will be parsing the [`u32`] in big-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(char::try_from_bytes_dynamic(&BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
-    /// assert!(matches!(char::try_from_bytes_dynamic(&BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl TryFromBytesDynamic<&mut BigEndian> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using big-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`BigEndian`] that determines we will be parsing the [`u32`] in big-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(char::try_from_bytes_dynamic(&mut BigEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]).unwrap(), 'A');
-    /// assert!(matches!(char::try_from_bytes_dynamic(&mut BigEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &mut BigEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl TryFromBytesDynamic<LittleEndian> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines we will be parsing the [`u32`] in little-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(char::try_from_bytes_dynamic(LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
-    /// assert!(matches!(char::try_from_bytes_dynamic(LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        // First, parse a u32 as base
-        let res: u32 = u32::try_from_bytes_dynamic(input, reader)?;
-
-        // Then, parse as char
-        match char::from_u32(res) {
-            Some(res) => Ok(res),
-            None      => Err(Error::NonUtf8Char { raw: res }),
-        }
-    }
-}
-impl TryFromBytesDynamic<&LittleEndian> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines we will be parsing the [`u32`] in little-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(char::try_from_bytes_dynamic(&LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
-    /// assert!(matches!(char::try_from_bytes_dynamic(&LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
-impl TryFromBytesDynamic<&mut LittleEndian> for char {
-    type Error = Error;
-
-    /// Parses a single [`char`] from the given input stream.
-    /// 
-    /// Note that individual chars are always parsed as [`u32`]s and then converted to UTF-8.
-    /// 
-    /// This parser parses the [`u32`] using little-endian byte order.
-    /// 
-    /// # Arguments
-    /// - `input`: The [`LittleEndian`] that determines we will be parsing the [`u32`] in little-endian byte order.
-    /// - `reader`: The [`Read`]er to read from.
-    /// 
-    /// # Returns
-    /// A new [`char`] parsed from the given `reader`.
-    /// 
-    /// # Errors
-    /// This function may error if we failed to parse a [`u32`] or if the parsed [`u32`] was not a valid [`char`].
-    /// 
-    /// # Example
-    /// ```rust
-    /// use bytes::{LittleEndian, TryFromBytesDynamic as _};
-    /// 
-    /// assert_eq!(char::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x41, 0x00, 0x00, 0x00 ][..]).unwrap(), 'A');
-    /// assert!(matches!(char::try_from_bytes_dynamic(&mut LittleEndian, &[ 0x00, 0x00, 0x00, 0x41 ][..]), Err(bytes::from_bytes::Error::NonUtf8Char { .. })));
-    /// ```
-    #[inline]
-    fn try_from_bytes_dynamic(input: &mut LittleEndian, reader: impl Read) -> Result<Self, Self::Error> {
-        Self::try_from_bytes_dynamic(*input, reader)
-    }
-}
+try_from_bytes_dynamic_primitive_impl!(u8);
+try_from_bytes_dynamic_primitive_impl!(i8);
+try_from_bytes_dynamic_primitive_impl!(u16);
+try_from_bytes_dynamic_primitive_impl!(i16);
+try_from_bytes_dynamic_primitive_impl!(u32);
+try_from_bytes_dynamic_primitive_impl!(i32);
+try_from_bytes_dynamic_primitive_impl!(u64);
+try_from_bytes_dynamic_primitive_impl!(i64);
+try_from_bytes_dynamic_primitive_impl!(u128);
+try_from_bytes_dynamic_primitive_impl!(i128);
+try_from_bytes_dynamic_primitive_impl!(usize);
+try_from_bytes_dynamic_primitive_impl!(isize);
+try_from_bytes_dynamic_primitive_impl!(f32);
+try_from_bytes_dynamic_primitive_impl!(f64);
+try_from_bytes_dynamic_primitive_impl!(char);
 
 // Implement it for tightly-packed containers
 try_from_bytes_dynamic_tuple_impl!();
