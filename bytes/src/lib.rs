@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    11 Oct 2023, 21:50:44
+//    11 Oct 2023, 22:55:41
 //  Auto updated?
 //    Yes
 // 
@@ -308,13 +308,13 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   
 ///   **Example**:
 ///   ```rust
-///   # use bytes::TryFromBytesDynamic;
+///   # use bytes::{Endianness, TryFromBytesDynamic, TryToBytesDynamic};
 ///   #[derive(TryFromBytesDynamic)]
-///   #[bytes(dynamic_ty = "usize", dynamic_name = "foo")]
+///   #[bytes(dynamic_ty = "Endianness", dynamic_name = "foo")]
 ///   struct Example {
 ///       // Now we can pass it as follows
 ///       #[bytes(input = foo)]
-///       text : String,
+///       num : u32,
 ///   }
 ///   ```
 /// - `#[bytes(dynamic_ty = "<TYPE>")]`: Defines the type of the input in
@@ -341,8 +341,8 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   
 ///   **Example**:
 ///   ```rust
-///   # use bytes::TryFromBytesDynamic;
-///   #[derive(TryFromBytesDynamic)]
+///   # use bytes::{TryFromBytes, TryToBytes};
+///   #[derive(TryFromBytes, TryToBytes)]
 ///   #[bytes(input_name = "foo")]
 ///   struct Example {
 ///       /// Without the renaming, this would cause weird errors.
@@ -398,8 +398,8 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   
 ///   **Example:**
 ///   ```rust
-///   # use bytes::TryFromBytesDynamic;
-///   #[derive(TryFromBytesDynamic)]
+///   # use bytes::{TryFromBytes, TryToBytes};
+///   #[derive(TryFromBytes, TryToBytes)]
 ///   struct Example {
 ///       // We still don't parse this field!
 ///       #[bytes(enabled = false)]
@@ -411,8 +411,8 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   
 ///   **Example:**
 ///   ```rust
-///   # use bytes::TryFromBytesDynamic;
-///   #[derive(TryFromBytesDynamic)]
+///   # use bytes::TryFromBytes;
+///   #[derive(TryFromBytes)]
 ///   struct Example {
 ///       // The field's name is `foo`...
 ///       #[bytes(name = "len")]
@@ -432,13 +432,18 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   
 ///   **Example:**
 ///   ```rust
-///   # use bytes::TryFromBytesDynamic;
+///   # use bytes::{TryFromBytes, TryToBytes};
+///   // Note the `Clone` here, which we need to turn a reference to it into an owned version in `TryToBytes`
+///   #[derive(Clone)]
 ///   struct SomeType(u32);
-///   impl From<u32> for SomeType {
-///        fn from(value: u32) -> Self { Self(value) }
+///   impl Into<SomeType> for u32 {
+///        fn into(self) -> SomeType { SomeType(self) }
+///   }
+///   impl Into<u32> for SomeType {
+///        fn into(self) -> u32 { self.0 }
 ///   }
 ///   
-///   #[derive(TryFromBytesDynamic)]
+///   #[derive(TryFromBytes, TryToBytes)]
 ///   struct Example {
 ///       // For if 
 ///       #[bytes(as_ty = "u32")]
@@ -455,15 +460,22 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   
 ///   **Example:**
 ///   ```rust
-///   use std::convert::TryFrom;
-///   # use bytes::TryFromBytesDynamic;
+///   use std::convert::TryInto;
+///   # use bytes::{TryFromBytes, TryToBytes};
+///   
+///   // Note the `Clone` here, which we need to turn a reference to it into an owned version in `TryToBytes`
+///   #[derive(Clone)]
 ///   struct SomeType(u32);
-///   impl TryFrom<u32> for SomeType {
+///   impl TryInto<SomeType> for u32 {
 ///        type Error = std::convert::Infallible;
-///        fn try_from(value: u32) -> Result<Self, Self::Error> { Ok(Self(value)) }
+///        fn try_into(self) -> Result<SomeType, Self::Error> { Ok(SomeType(self)) }
+///   }
+///   impl TryInto<u32> for SomeType {
+///        type Error = std::convert::Infallible;
+///        fn try_into(self) -> Result<u32, Self::Error> { Ok(self.0) }
 ///   }
 ///   
-///   #[derive(TryFromBytesDynamic)]
+///   #[derive(TryFromBytes, TryToBytes)]
 ///   struct Example {
 ///       // For if 
 ///       #[bytes(try_as_ty = "u32")]
@@ -479,8 +491,8 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   
 ///   **Example**:
 ///   ```rust
-///   # use bytes::TryFromBytesDynamic;
-///   #[derive(TryFromBytesDynamic)]
+///   # use bytes::TryFromBytes;
+///   #[derive(TryFromBytes)]
 ///   struct Example {
 ///       /// We parse the length of the string first...
 ///       #[bytes]
@@ -491,42 +503,6 @@ pub use to::{TryToBytes, TryToBytesDynamic};
 ///   }
 ///   ```
 #[cfg(feature = "derive")]
-pub mod procedural {
-    /// Defines a procedural macro for deriving [`TryFromBytes`](trait@crate::TryFromBytes)
-    /// implementations on structs.
-    /// 
-    /// This is mostly useful for defining certain static byte layouts and how to parse them. For
-    /// example:
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytes};
-    /// 
-    /// #[derive(TryFromBytes)]
-    /// struct UdpHeader {
-    ///     /// The packet source port.
-    ///     #[bytes(input = BigEndian)]
-    ///     src_port : u16,
-    ///     /// The packet destination port.
-    ///     #[bytes(input = BigEndian)]
-    ///     dst_port : u16,
-    ///     /// The length of the packet, in bytes.
-    ///     #[bytes(input = BigEndian)]
-    ///     length   : u16,
-    ///     /// A checksum for the datagram.
-    ///     #[bytes(input = BigEndian)]
-    ///     checksum : u16,
-    /// }
-    /// ```
-    /// 
-    /// Note that this trait is a shorthand for a
-    /// [`TryFromBytesDynamic<NoInput>`](trait@crate::TryFromBytesDynamic<NoInput>), which implies a dynamic
-    /// struct without input. As such, the derivation procedure for the two is exactly the same,
-    /// except that the toplevel has no `#[bytes(dynamic_name = ...)]` and `#[bytes(dynamic_ty = ...)]`
-    /// fields (but the individual fields still do).
-    /// 
-    /// As such, we recommend you read the
-    /// [`TryFromBytesDynamic`](crate::procedural)-macro documentation instead.
-    #[allow(non_snake_case)]
-    pub mod TryFromBytes {}
-}
+pub mod procedural {}
 #[cfg(feature = "derive")]
 pub use bytes_derive::{TryFromBytes, TryFromBytesDynamic, TryToBytes, TryToBytesDynamic};

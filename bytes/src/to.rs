@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 11:30:12
 //  Last edited:
-//    11 Oct 2023, 21:51:05
+//    11 Oct 2023, 22:56:03
 //  Auto updated?
 //    Yes
 // 
@@ -1086,13 +1086,55 @@ pub enum Error {
     /// assert!(matches!(Example { field_1: 42 }.try_to_bytes(&mut [][..]), Err(bytes::to::Error::Field{ .. })));
     /// ```
     Field { name: String, err: Box<dyn error::Error> },
+    /// Failed to convert some type to another type when calling using the derived attribute `try_as_ty`.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use std::convert::TryInto;
+    /// use std::error::Error;
+    /// use std::fmt::{Display, Formatter, Result as FResult};
+    /// use bytes::{BigEndian, TryToBytes};
+    /// 
+    /// // Let us whip up a quick example error
+    /// #[derive(Debug)]
+    /// struct SomeError(String);
+    /// impl Display for SomeError {
+    ///     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+    ///         write!(f, "{}", self.0)
+    ///     }
+    /// }
+    /// impl Error for SomeError {}
+    /// 
+    /// // A quick type implementing `TryInto`
+    /// #[derive(Clone)]
+    /// struct SomeType(u32);
+    /// impl TryInto<u32> for SomeType {
+    ///     type Error = SomeError;
+    /// 
+    ///     fn try_into(self) -> Result<u32, Self::Error> {
+    ///         Err(SomeError("Oh no, that went wrong!".into()))
+    ///     }
+    /// }
+    /// 
+    /// // Our example struct!
+    /// #[derive(TryToBytes)]
+    /// struct Example {
+    ///     #[bytes(try_as_ty = "u32", input = BigEndian)]
+    ///     something : SomeType,
+    /// }
+    /// 
+    /// // This fails ;(
+    /// assert!(matches!(Example { something: SomeType(42) }.try_to_bytes(&mut [0; 4][..]), Err(bytes::to::Error::TryAsType { .. })));
+    /// ```
+    TryAsType { from: &'static str, to: &'static str, err: Box<dyn error::Error> },
 }
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
-            Write { .. }       => write!(f, "Failed to write to given writer"),
-            Field { name, .. } => write!(f, "Failed to serialize field '{name}'"),
+            Write { .. }               => write!(f, "Failed to write to given writer"),
+            Field { name, .. }         => write!(f, "Failed to serialize field '{name}'"),
+            TryAsType { from, to, .. } => write!(f, "Failed to convert from type '{from}' to '{to}'"),
         }
     }
 }
@@ -1100,8 +1142,9 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         use Error::*;
         match self {
-            Write { err }     => Some(err),
-            Field { err, .. } => Some(&**err),
+            Write { err }         => Some(err),
+            Field { err, .. }     => Some(&**err),
+            TryAsType { err, .. } => Some(&**err),
         }
     }
 }

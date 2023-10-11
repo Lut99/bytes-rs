@@ -4,7 +4,7 @@
 //  Created:
 //    02 Oct 2023, 19:52:06
 //  Last edited:
-//    11 Oct 2023, 21:50:59
+//    11 Oct 2023, 22:45:54
 //  Auto updated?
 //    Yes
 // 
@@ -14,7 +14,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{Expr, Generics, Ident, Type};
-use quote::quote;
+use quote::{quote, quote_spanned};
 
 use crate::spec::{TryFromBytesDynamicInfo, TryToBytesDynamicInfo};
 
@@ -38,39 +38,45 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
         let real_name: Ident = field.common.real_name;
         let dyn_name: Ident = field.common.dyn_name;
         let real_ty: Type = field.common.real_ty;
-        let (parse_ty, parse_ty_into, parse_ty_default_into): (Type, TokenStream2, TokenStream2) = match (field.common.as_ty, field.common.try_as_ty) {
+        let (parse_ty, parse_ty_into, parse_ty_default_into): (TokenStream2, TokenStream2, TokenStream2) = match (field.common.as_ty, field.common.try_as_ty) {
             // `as_ty`-implementation
-            (Some((ty, _)), None) => (
-                ty.clone(),
-                quote!{ <#ty as ::std::convert::Into<#real_ty>>::into(val) },
-                quote!{ <#ty as ::std::convert::Into<#real_ty>>::into(<#ty as ::std::default::Default>::default()) },
-            ),
+            (Some((ty, span)), None) => {
+                let ty: TokenStream2 = quote_spanned!(span => #ty);
+                (
+                    ty.clone(),
+                    quote!{ <#ty as ::std::convert::Into<#real_ty>>::into(val) },
+                    quote!{ <#ty as ::std::convert::Into<#real_ty>>::into(<#ty as ::std::default::Default>::default()) },
+                )
+            },
 
             // `try_as_ty`-implementation
-            (None, Some((ty, _))) => (
-                ty.clone(),
-                quote!{
-                    <#ty as ::std::convert::TryInto<#real_ty>>::try_into(val)
-                        .map_err(|err| ::bytes::from::Error::TryAsType {
-                            from : ::std::any::type_name::<#ty>(),
-                            to   : ::std::any::type_name::<#real_ty>(),
-                            err  : ::std::boxed::Box::new(err) })?
-                },
-                quote!{
-                    ::std::option::Option::map_err(
-                        <#ty as ::std::convert::TryInto<#real_ty>>::try_into(<#ty as ::std::default::Default>::default()),
-                        |err| ::bytes::from::Error::TryAsType {
-                            from : ::std::any::type_name::<#ty>(),
-                            to   : ::std::any::type_name::<#real_ty>(),
-                            err  : ::std::boxed::Box::new(err)
-                        }
-                    )?
-                },
-            ),
+            (None, Some((ty, span))) => {
+                let ty: TokenStream2 = quote_spanned!(span => #ty);
+                (
+                    ty.clone(),
+                    quote!{
+                        <#ty as ::std::convert::TryInto<#real_ty>>::try_into(val)
+                            .map_err(|err| ::bytes::from::Error::TryAsType {
+                                from : ::std::any::type_name::<#ty>(),
+                                to   : ::std::any::type_name::<#real_ty>(),
+                                err  : ::std::boxed::Box::new(err) })?
+                    },
+                    quote!{
+                        ::std::option::Option::map_err(
+                            <#ty as ::std::convert::TryInto<#real_ty>>::try_into(<#ty as ::std::default::Default>::default()),
+                            |err| ::bytes::from::Error::TryAsType {
+                                from : ::std::any::type_name::<#ty>(),
+                                to   : ::std::any::type_name::<#real_ty>(),
+                                err  : ::std::boxed::Box::new(err)
+                            }
+                        )?
+                    },
+                )
+            },
 
             // Direct implementation
             (None, None) => (
-                real_ty.clone(),
+                quote!{ #real_ty },
                 quote!{ val },
                 quote!{ <#real_ty as ::std::default::Default>::default() },
             ),
@@ -218,6 +224,42 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
         let real_ty: Type = field.common.real_ty;
         let input_name: &Ident = &info.metadata.input_name;
         let input: Expr = field.common.input;
+        let (ser_ty, ser_ty_into): (TokenStream2, TokenStream2) = match (field.common.as_ty, field.common.try_as_ty) {
+            // `as_ty`-implementation
+            (Some((ty, span)), None) => {
+                let ty: TokenStream2 = quote_spanned!(span => #ty);
+                (
+                    ty.clone(),
+                    quote! {
+                        <#real_ty as ::std::convert::Into<#ty>>::into(
+                            <#real_ty as ::std::clone::Clone>::clone(#dyn_name)
+                        )
+                    },
+                )
+            },
+
+            // `try_as_ty`-implementation
+            (None, Some((ty, span))) => {
+                let ty: TokenStream2 = quote_spanned!(span => #ty);
+                (
+                    ty.clone(),
+                    quote! {
+                        <#real_ty as ::std::convert::TryInto<#ty>>::try_into(
+                            <#real_ty as ::std::clone::Clone>::clone(#dyn_name)
+                        ).map_err(|err| ::bytes::to::Error::TryAsType {
+                            from : ::std::any::type_name::<#real_ty>(),
+                            to   : ::std::any::type_name::<#ty>(),
+                            err  : ::std::boxed::Box::new(err) })?
+                    },
+                )
+            },
+
+            // Direct implementation
+            (None, None) => (quote! { #real_ty }, quote!{ #dyn_name }),
+
+            // Unreachable (due to conflicting arguments check in parse)
+            (Some(_), Some(_)) => { unreachable!(); },
+        };
 
         // // Generate an offset impl, if necessary
         // let offset: Option<TokenStream2> = field.common.offset.map(|offset| {
@@ -239,7 +281,7 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
             #offset
 
             // Attempt to serialize using the dynamic type
-            if let ::std::result::Result::Err(err) = <#real_ty as ::bytes::to::TryToBytesDynamic<_>>::try_to_bytes_dynamic(#dyn_name, #input, &mut #input_name) {
+            if let ::std::result::Result::Err(err) = <#ser_ty as ::bytes::to::TryToBytesDynamic<_>>::try_to_bytes_dynamic(&#ser_ty_into, #input, &mut #input_name) {
                 return ::std::result::Result::Err(::bytes::to::Error::Field { name: #real_name_str.into(), err: ::std::boxed::Box::new(err) });
             }
         });

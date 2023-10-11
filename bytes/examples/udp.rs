@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 18:26:35
 //  Last edited:
-//    04 Oct 2023, 21:49:53
+//    11 Oct 2023, 22:23:58
 //  Auto updated?
 //    Yes
 // 
@@ -14,12 +14,13 @@
 //!   Example headers taken from: <https://www.geeksforgeeks.org/examples-on-udp-header/>.
 // 
 
-use bytes::{BigEndian, TryFromBytes};
+use bytes::{BigEndian, TryFromBytes, TryToBytes};
 
 
 /***** HEADERS *****/
 /// Can parse UDP headers, based on the spec on <https://en.wikipedia.org/wiki/User_Datagram_Protocol#UDP_datagram_structure>.
 #[derive(TryFromBytes)]
+#[derive(TryToBytes)]
 struct UdpHeader {
     /// The packet source port.
     #[bytes(input = BigEndian)]
@@ -61,4 +62,19 @@ fn main() {
     assert_eq!(dg3.dst_port, 4122);
     assert_eq!(dg3.length, 4172);
     assert_eq!(dg3.checksum, 25154);
+
+
+
+    // Serialize some packets back!
+    let mut output: [u8; 8] = [0; 8];
+    dg1.try_to_bytes(&mut output[..]).unwrap();
+    assert_eq!(output, [ 0x06, 0x32, 0x00, 0x0D, 0x00, 0x1C, 0xE2, 0x17 ]);
+
+    let mut output: [u8; 8] = [0; 8];
+    dg2.try_to_bytes(&mut output[..]).unwrap();
+    assert_eq!(output, [ 0x04, 0x21, 0x00, 0x0B, 0x00, 0x2A, 0xE2, 0x17 ]);
+
+    let mut output: [u8; 8] = [0; 8];
+    dg3.try_to_bytes(&mut output[..]).unwrap();
+    assert_eq!(output, [ 0x03, 0x61, 0x10, 0x1A, 0x10, 0x4C, 0x62, 0x42 ]);
 }

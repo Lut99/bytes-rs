@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:11:47
 //  Last edited:
-//    11 Oct 2023, 21:08:25
+//    11 Oct 2023, 22:29:07
 //  Auto updated?
 //    Yes
 // 
@@ -53,18 +53,18 @@ fn parse_list_attrs(l: &MetaList) -> Result<Vec<Meta>, Diagnostic> {
 /// # Arguments
 /// - `is_parser`: Whether this is called for the parser (true) or the serializer (false).
 /// - `attr`: The [`Attribute`] to parse.
-/// - `callback`: The function to call for every parsed nested attribute. The Meta is only given if `#[bytes]` is accompanied with a list. If it errors, then the parser immediately propagates the result to its own error.
+/// - `callback`: The function to call for every parsed nested attribute. The Meta is only given if `#[bytes]` is accompanied with a list. The return value determines if the enableness needs to be overriden and if so, with what. If it errors, then the parser immediately propagates the result to its own error.
 /// 
 /// # Returns
-/// Whether any `#[bytes(...)]`-attribute was found
+/// Whether the parsed field should be enabled.
 /// 
 /// # Errors
 /// This function may error if we failed to parse the contents of `#[bytes(...)]` or if any callback errored.
-fn parse_attr(is_parser: bool, attr: Attribute, mut callback: impl FnMut(&Path, Option<Meta>) -> Result<(), Diagnostic>) -> Result<bool, Diagnostic> {
+fn parse_attr(is_parser: bool, attr: Attribute, mut callback: impl FnMut(&Path, Option<Meta>) -> Result<Option<bool>, Diagnostic>) -> Result<bool, Diagnostic> {
     // Match the attribute's meta
     let mut found: bool = false;
     match attr.meta {
-        Meta::Path(p) => if p.is_ident("bytes") { found = true; callback(&p, None)?; },
+        Meta::Path(p) => if p.is_ident("bytes") { found = callback(&p, None)?.unwrap_or(true); },
         Meta::List(l) => if l.path.is_ident("bytes") {
             found = true;
 
@@ -84,12 +84,16 @@ fn parse_attr(is_parser: bool, attr: Attribute, mut callback: impl FnMut(&Path, 
                         // Recursively parse the meta
                         let args: Vec<Meta> = parse_list_attrs(&l)?;
                         for arg in args {
-                            callback(&l.path, Some(arg))?;
+                            if let Some(new_found) = callback(&l.path, Some(arg))? {
+                                found = new_found;
+                            }
                         }
                     }
                 } else {
                     // Otherwise, just call normally
-                    callback(&l.path, Some(arg))?;
+                    if let Some(new_found) = callback(&l.path, Some(arg))? {
+                        found = new_found;
+                    }
                 }
             }
         },
@@ -181,30 +185,30 @@ fn parse_try_from_bytes_dynamic(is_parser: bool, attrs: Vec<Attribute>, name: Id
     // First, go through all the toplevel attributes
     for attr in attrs {
         // Parse them as toplevel attributes
-        parse_attr(is_parser, attr, |ident: &Path, meta: Option<Meta>| -> Result<(), Diagnostic> {
+        parse_attr(is_parser, attr, |ident: &Path, meta: Option<Meta>| -> Result<Option<bool>, Diagnostic> {
             // Further match the meta
             match meta {
                 Some(Meta::NameValue(nv)) => if nv.path.is_ident("input_name") {
                     // Store the value as an identifier
                     let lit: LitStr = parse_expr_as_str_lit(nv.value)?;
                     info.metadata.input_name = Ident::new(&lit.value(), lit.span());
-                    Ok(())
+                    Ok(None)
 
                 } else if allow_dynamic && nv.path.is_ident("dynamic_name") {
                     // Store the value as an identifier
                     let lit: LitStr = parse_expr_as_str_lit(nv.value)?;
                     info.metadata.dynamic_name = Ident::new(&lit.value(), lit.span());
-                    Ok(())
+                    Ok(None)
 
                 } else if allow_dynamic && nv.path.is_ident("dynamic_ty") {
                     // Store the value as a type
                     info.metadata.dynamic_ty = parse_expr_as_str_lit_type(nv.value)?;
-                    Ok(())
+                    Ok(None)
 
                 } else if nv.path.is_ident("generate_refs") {
                     // Parse the value as a boolean literal
                     info.metadata.generate_refs = parse_expr_as_bool_lit(nv.value)?.value;
-                    Ok(())
+                    Ok(None)
 
                 } else {
                     Err(Diagnostic::spanned(nv.path.span(), Level::Error, format!("Unknown `#[bytes(...)]` key/value attribute{}", if let Some(text) = nv.path.span().source_text() { format!(" '{text}'") } else { String::new() })))
@@ -228,33 +232,29 @@ fn parse_try_from_bytes_dynamic(is_parser: bool, attrs: Vec<Attribute>, name: Id
         let mut field_info: FieldParserInfo = FieldParserInfo::default(field.ident.unwrap_or_else(|| Ident::new(&format!("{i}"), Span::call_site())), field.ty);
         for attr in field.attrs {
             // Parse them as toplevel attributes
-            parse_attr(is_parser, attr, |_: &Path, meta: Option<Meta>| -> Result<(), Diagnostic> {
-                // We've seen a `#[bytes(...)]`, so let's enable
-                field_info.common.enabled = true;
-
+            field_info.common.enabled = parse_attr(is_parser, attr, |_: &Path, meta: Option<Meta>| -> Result<Option<bool>, Diagnostic> {
                 // Further match the meta
                 match meta.clone() {
                     Some(Meta::NameValue(nv)) => if nv.path.is_ident("enabled") {
                         // Store the value as an identifier
                         let lit: LitBool = parse_expr_as_bool_lit(nv.value)?;
-                        field_info.common.enabled = lit.value();
-                        Ok(())
+                        Ok(Some(lit.value()))
 
                     } else if nv.path.is_ident("name") {
                         // Store the value as an identifier
                         let lit: LitStr = parse_expr_as_str_lit(nv.value)?;
                         field_info.common.dyn_name = Ident::new(&lit.value(), lit.span());
-                        Ok(())
+                        Ok(None)
 
                     } else if nv.path.is_ident("as_ty") {
                         // Store the value as a type
                         field_info.common.as_ty = Some(parse_expr_as_str_lit_type(nv.value)?);
-                        Ok(())
+                        Ok(None)
 
                     } else if nv.path.is_ident("try_as_ty") {
                         // Store the value as a type
                         field_info.common.try_as_ty = Some(parse_expr_as_str_lit_type(nv.value)?);
-                        Ok(())
+                        Ok(None)
 
                     // } else if nv.path.is_ident("offset") {
                     //     // Store the value as the arbitrary expression we got
@@ -264,18 +264,14 @@ fn parse_try_from_bytes_dynamic(is_parser: bool, attrs: Vec<Attribute>, name: Id
                     } else if nv.path.is_ident("input") {
                         // Store the value as the arbitrary expression we got
                         field_info.common.input = nv.value;
-                        Ok(())
+                        Ok(None)
 
                     } else {
                         Err(Diagnostic::spanned(nv.path.span(), Level::Error, format!("Unknown `#[bytes(...)]` key/value attribute{}", if let Some(text) = nv.path.span().source_text() { format!(" '{text}'") } else { String::new() })))
                     },
 
                     // If None, then means only `#[bytes]` is given
-                    None => {
-                        // Simply enable it and done is Cees
-                        field_info.common.enabled = true;
-                        Ok(())
-                    },
+                    None => Ok(None),
 
                     // Ignored otherwise
                     Some(Meta::List(l)) => Err(Diagnostic::spanned(l.path.span(), Level::Error, format!("Unknown `#[bytes(...)]` list attribute{}", if let Some(text) = l.path.span().source_text() { format!(" '{text}'") } else { String::new() }))),
