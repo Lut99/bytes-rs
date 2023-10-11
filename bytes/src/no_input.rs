@@ -4,7 +4,7 @@
 //  Created:
 //    09 Oct 2023, 16:21:43
 //  Last edited:
-//    11 Oct 2023, 21:46:07
+//    11 Oct 2023, 21:50:59
 //  Auto updated?
 //    Yes
 // 
@@ -17,8 +17,8 @@
 /***** LIBRARY *****/
 /// A special type that is used by the [`bytes`](crate)-library to mark that a parser
 /// or serializer does not use any input. As such,
-/// [`TryFromBytes`](crate::from_bytes::TryFromBytes) and/or
-/// [`TryToBytes`](crate::to_bytes::TryToBytes) may be derived.
+/// [`TryFromBytes`](crate::from::TryFromBytes) and/or
+/// [`TryToBytes`](crate::to::TryToBytes) may be derived.
 /// 
 /// You may wonder why `()` isn't used for this. This is because `()` does not
 /// implement [`AsRef<()>`], and future crates may somehow implement a new

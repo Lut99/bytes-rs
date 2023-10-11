@@ -4,7 +4,7 @@
 //  Created:
 //    02 Oct 2023, 19:52:06
 //  Last edited:
-//    11 Oct 2023, 21:23:13
+//    11 Oct 2023, 21:50:59
 //  Auto updated?
 //    Yes
 // 
@@ -51,7 +51,7 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
                 ty.clone(),
                 quote!{
                     <#ty as ::std::convert::TryInto<#real_ty>>::try_into(val)
-                        .map_err(|err| ::bytes::from_bytes::Error::TryAsType {
+                        .map_err(|err| ::bytes::from::Error::TryAsType {
                             from : ::std::any::type_name::<#ty>(),
                             to   : ::std::any::type_name::<#real_ty>(),
                             err  : ::std::boxed::Box::new(err) })?
@@ -59,7 +59,7 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
                 quote!{
                     ::std::option::Option::map_err(
                         <#ty as ::std::convert::TryInto<#real_ty>>::try_into(<#ty as ::std::default::Default>::default()),
-                        |err| ::bytes::from_bytes::Error::TryAsType {
+                        |err| ::bytes::from::Error::TryAsType {
                             from : ::std::any::type_name::<#ty>(),
                             to   : ::std::any::type_name::<#real_ty>(),
                             err  : ::std::boxed::Box::new(err)
@@ -95,7 +95,7 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
             //     quote! {
             //         // Offset the input
             //         if let ::std::result::Result::Err(err) = <::std::io::Cursor<_> as ::std::io::Seek>::seek(::std::io::SeekFrom::Start(#offset)) {
-            //             return ::std::result::Result::Err(::bytes::from_bytes::Error::Seek { err });
+            //             return ::std::result::Result::Err(::bytes::from::Error::Seek { err });
             //         }
             //     }
             // });
@@ -107,9 +107,9 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
                     #offset
 
                     // Attempt to parse using the dynamic type
-                    match <#parse_ty as ::bytes::from_bytes::TryFromBytesDynamic<_>>::try_from_bytes_dynamic(#input, &mut #input_name) {
+                    match <#parse_ty as ::bytes::from::TryFromBytesDynamic<_>>::try_from_bytes_dynamic(#input, &mut #input_name) {
                         ::std::result::Result::Ok(val) => #parse_ty_into,
-                        ::std::result::Result::Err(err) => { return ::std::result::Result::Err(::bytes::from_bytes::Error::Field { name: <&str as ::std::convert::Into<String>>::into(#real_name_str), err: ::std::boxed::Box::new(err) }); },
+                        ::std::result::Result::Err(err) => { return ::std::result::Result::Err(::bytes::from::Error::Field { name: <&str as ::std::convert::Into<String>>::into(#real_name_str), err: ::std::boxed::Box::new(err) }); },
                     }
                 };
             });
@@ -147,8 +147,8 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let parser_impl: TokenStream2 = quote! {
         #[automatically_derived]
-        impl #impl_generics ::bytes::from_bytes::TryFromBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
-            type Error = ::bytes::from_bytes::Error;
+        impl #impl_generics ::bytes::from::TryFromBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
+            type Error = ::bytes::from::Error;
 
             fn try_from_bytes_dynamic(#dynamic_name: #dynamic_ty, mut #input_name: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
                 #cursor
@@ -170,8 +170,8 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
             #parser_impl
 
             #[automatically_derived]
-            impl #impl_generics ::bytes::from_bytes::TryFromBytesDynamic<&#dynamic_ty> for #name #ty_generics #where_clause {
-                type Error = ::bytes::from_bytes::Error;
+            impl #impl_generics ::bytes::from::TryFromBytesDynamic<&#dynamic_ty> for #name #ty_generics #where_clause {
+                type Error = ::bytes::from::Error;
     
                 fn try_from_bytes_dynamic(#dynamic_name: &#dynamic_ty, mut #input_name: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
                     // Refer to the main impl
@@ -228,7 +228,7 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
         //     quote! {
         //         // Offset the input
         //         if let ::std::result::Result::Err(err) = <::std::io::Cursor<_> as ::std::io::Seek>::seek(::std::io::SeekFrom::Start(#offset)) {
-        //             return ::std::result::Result::Err(::bytes::to_bytes::Error::Seek { err });
+        //             return ::std::result::Result::Err(::bytes::to::Error::Seek { err });
         //         }
         //     }
         // });
@@ -239,8 +239,8 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
             #offset
 
             // Attempt to serialize using the dynamic type
-            if let ::std::result::Result::Err(err) = <#real_ty as ::bytes::to_bytes::TryToBytesDynamic<_>>::try_to_bytes_dynamic(#dyn_name, #input, &mut #input_name) {
-                return ::std::result::Result::Err(::bytes::to_bytes::Error::Field { name: #real_name_str.into(), err: ::std::boxed::Box::new(err) });
+            if let ::std::result::Result::Err(err) = <#real_ty as ::bytes::to::TryToBytesDynamic<_>>::try_to_bytes_dynamic(#dyn_name, #input, &mut #input_name) {
+                return ::std::result::Result::Err(::bytes::to::Error::Field { name: #real_name_str.into(), err: ::std::boxed::Box::new(err) });
             }
         });
     }
@@ -266,8 +266,8 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let parser_impl: TokenStream2 = quote! {
         #[automatically_derived]
-        impl #impl_generics ::bytes::to_bytes::TryToBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
-            type Error = ::bytes::to_bytes::Error;
+        impl #impl_generics ::bytes::to::TryToBytesDynamic<#dynamic_ty> for #name #ty_generics #where_clause {
+            type Error = ::bytes::to::Error;
 
             fn try_to_bytes_dynamic(&self, #dynamic_name: #dynamic_ty, mut #input_name: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {
                 #cursor
@@ -290,8 +290,8 @@ pub fn generate_serializer(generics: Generics, info: TryToBytesDynamicInfo) -> T
             #parser_impl
 
             #[automatically_derived]
-            impl #impl_generics ::bytes::to_bytes::TryToBytesDynamic<&#dynamic_ty> for #name #ty_generics #where_clause {
-                type Error = ::bytes::to_bytes::Error;
+            impl #impl_generics ::bytes::to::TryToBytesDynamic<&#dynamic_ty> for #name #ty_generics #where_clause {
+                type Error = ::bytes::to::Error;
 
                 #[inline]
                 fn try_to_bytes_dynamic(&self, #dynamic_name: &#dynamic_ty, mut #input_name: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {

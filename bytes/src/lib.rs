@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    11 Oct 2023, 21:48:17
+//    11 Oct 2023, 21:50:44
 //  Auto updated?
 //    Yes
 // 
@@ -109,21 +109,21 @@
 
 // Declare the submodules
 pub mod flags;
-pub mod from_bytes;
+pub mod from;
 pub mod no_input;
 pub mod order;
 pub mod string;
-pub mod to_bytes;
+pub mod to;
 
 
 
 // Bring some of that into the crate namespace
 pub use flags::Flags;
-pub use from_bytes::{TryFromBytes, TryFromBytesDynamic};
+pub use from::{TryFromBytes, TryFromBytesDynamic};
 pub use no_input::NoInput;
 pub use order::{BigEndian, Endianness, LittleEndian};
 pub use string::{Lossiness, Lossy, NonLossy};
-pub use to_bytes::{TryToBytes, TryToBytesDynamic};
+pub use to::{TryToBytes, TryToBytesDynamic};
 
 
 
@@ -380,7 +380,7 @@ pub use to_bytes::{TryToBytes, TryToBytesDynamic};
 ///   }
 ///   // Instead, implement our own for good practise
 ///   impl TryFromBytesDynamic<&Helper> for Example {
-///       type Error = bytes::from_bytes::Error;
+///       type Error = bytes::from::Error;
 ///       
 ///       #[inline]
 ///       fn try_from_bytes_dynamic(_input: &Helper, reader: impl Read) -> Result<Self, Self::Error> {

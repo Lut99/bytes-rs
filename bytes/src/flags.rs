@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    11 Oct 2023, 21:45:52
+//    11 Oct 2023, 21:51:00
 //  Auto updated?
 //    Yes
 // 
@@ -16,9 +16,9 @@
 use std::io::{Read, Write};
 use std::ops::{Deref, DerefMut};
 
-use crate::from_bytes::TryFromBytesDynamic;
+use crate::from::TryFromBytesDynamic;
 use crate::no_input::NoInput;
-use crate::to_bytes::TryToBytesDynamic;
+use crate::to::TryToBytesDynamic;
 
 
 /***** LIBRARY MACROS *****/
@@ -85,8 +85,8 @@ macro_rules! flags {
         $outer_vis struct $name {
             $($(#[$field_attr])* $inner_vis $field_name : bool),*
         }
-        impl ::bytes::from_bytes::TryFromBytesDynamic<::bytes::no_input::NoInput> for $name {
-            type Error = ::bytes::from_bytes::Error;
+        impl ::bytes::from::TryFromBytesDynamic<::bytes::no_input::NoInput> for $name {
+            type Error = ::bytes::from::Error;
 
             fn try_from_bytes_dynamic(_input: ::bytes::no_input::NoInput, mut reader: impl ::std::io::Read) -> ::std::result::Result<Self, Self::Error> {
                 // Compute how many bytes we need to read
@@ -95,7 +95,7 @@ macro_rules! flags {
 
                 // Read those bytes
                 let mut bytes: [::std::primitive::u8; N_BYTES] = [0; N_BYTES];
-                if let Err(err) = reader.read_exact(&mut bytes) { return ::std::result::Result::Err(::bytes::from_bytes::Error::Read { err }); }
+                if let Err(err) = reader.read_exact(&mut bytes) { return ::std::result::Result::Err(::bytes::from::Error::Read { err }); }
 
                 // Serialize the bytes to a list of flags
                 let mut flags: [::std::primitive::bool; N_FLAGS] = [false; N_FLAGS];
@@ -115,8 +115,8 @@ macro_rules! flags {
                 })
             }
         }
-        impl ::bytes::to_bytes::TryToBytesDynamic<::bytes::no_input::NoInput> for $name {
-            type Error = ::bytes::to_bytes::Error;
+        impl ::bytes::to::TryToBytesDynamic<::bytes::no_input::NoInput> for $name {
+            type Error = ::bytes::to::Error;
 
             fn try_to_bytes_dynamic(&self, _input: ::bytes::no_input::NoInput, mut writer: impl ::std::io::Write) -> ::std::result::Result<(), Self::Error> {
                 // Compute how many bytes we need to read
@@ -134,7 +134,7 @@ macro_rules! flags {
                         if flags[i * 8 + j] { res |= 0x1 << (7 - j) }
                     }
                     if let ::std::result::Result::Err(err) = writer.write_all(&[ res ]) {
-                        return ::std::result::Result::Err(::bytes::to_bytes::Error::Write { err });
+                        return ::std::result::Result::Err(::bytes::to::Error::Write { err });
                     }
                 }
 
@@ -167,7 +167,7 @@ macro_rules! flags {
 /// assert_eq!(Flags::<3>::try_from_bytes(&[ 0b10100110 ][..]).unwrap(), Flags([ true, false, true ]));
 /// assert_eq!(Flags::<8>::try_from_bytes(&[ 0b10100110 ][..]).unwrap(), Flags([ true, false, true, false, false, true, true, false ]));
 /// assert_eq!(Flags::<12>::try_from_bytes(&[ 0b10100110, 0b00010000 ][..]).unwrap(), Flags([ true, false, true, false, false, true, true, false, false, false, false, true ]));
-/// assert!(matches!(Flags::<12>::try_from_bytes(&[ 0b10100110 ][..]), Err(bytes::from_bytes::Error::Read { .. })));
+/// assert!(matches!(Flags::<12>::try_from_bytes(&[ 0b10100110 ][..]), Err(bytes::from::Error::Read { .. })));
 /// 
 /// let mut output: [u8; 1] = [0; 1];
 /// assert!(Flags([true, false, true]).try_to_bytes(&mut output[..]).is_ok());
@@ -182,7 +182,7 @@ macro_rules! flags {
 /// assert_eq!(output, [ 0b10100110, 0b00010000 ]);
 /// 
 /// let mut output: [u8; 1] = [0; 1];
-/// assert!(matches!(Flags([true, false, true, false, false, true, true, false, false, false, false, true ]).try_to_bytes(&mut output[..]), Err(bytes::to_bytes::Error::Write { .. })));
+/// assert!(matches!(Flags([true, false, true, false, false, true, true, false, false, false, false, true ]).try_to_bytes(&mut output[..]), Err(bytes::to::Error::Write { .. })));
 /// ```
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct Flags<const N: usize>(pub [bool; N]);
@@ -199,7 +199,7 @@ impl<const N: usize> DerefMut for Flags<N> {
 }
 
 impl<const N: usize> TryFromBytesDynamic<NoInput> for Flags<N> {
-    type Error = crate::from_bytes::Error;
+    type Error = crate::from::Error;
 
     fn try_from_bytes_dynamic(_input: NoInput, mut reader: impl Read) -> Result<Self, Self::Error> {
         // Compute how many bytes we need to read
@@ -207,7 +207,7 @@ impl<const N: usize> TryFromBytesDynamic<NoInput> for Flags<N> {
 
         // Read those bytes
         let mut bytes: Vec<u8> = vec![0; n_bytes];
-        if let Err(err) = reader.read_exact(&mut bytes) { return Err(crate::from_bytes::Error::Read { err }); }
+        if let Err(err) = reader.read_exact(&mut bytes) { return Err(crate::from::Error::Read { err }); }
 
         // Serialize the bytes to a list of flags
         let mut flags: [bool; N] = [false; N];
@@ -223,7 +223,7 @@ impl<const N: usize> TryFromBytesDynamic<NoInput> for Flags<N> {
     }
 }
 impl<const N: usize> TryToBytesDynamic<NoInput> for Flags<N> {
-    type Error = crate::to_bytes::Error;
+    type Error = crate::to::Error;
 
     fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
         // Compute how many bytes we need to read
@@ -237,7 +237,7 @@ impl<const N: usize> TryToBytesDynamic<NoInput> for Flags<N> {
                 if self.0[i * 8 + j] { res |= 0x1 << (7 - j) }
             }
             if let Err(err) = writer.write_all(&[ res ]) {
-                return Err(crate::to_bytes::Error::Write { err });
+                return Err(crate::to::Error::Write { err });
             }
         }
 

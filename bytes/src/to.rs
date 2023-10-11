@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 11:30:12
 //  Last edited:
-//    11 Oct 2023, 21:46:34
+//    11 Oct 2023, 21:51:05
 //  Auto updated?
 //    Yes
 // 
@@ -148,7 +148,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// ```rust
             /// use bytes::{Endianness, TryToBytesDynamic as _};
             /// 
-            /// fn serialize<const LEN: usize>(value: char, endianness: Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            /// fn serialize<const LEN: usize>(value: char, endianness: Endianness) -> Result<[u8; LEN], bytes::to::Error> {
             ///     let mut buf: [u8; LEN] = [0; LEN];
             ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
             ///     Ok(buf)
@@ -157,8 +157,8 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(serialize::<4>('A', Endianness::Big).unwrap(), [ 0x00, 0x00, 0x00, 0x41 ]);
             /// assert_eq!(serialize::<4>('A', Endianness::Little).unwrap(), [ 0x41, 0x00, 0x00, 0x00 ]);
             /// 
-            /// assert!(matches!(serialize::<3>('A', Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
-            /// assert!(matches!(serialize::<3>('A', Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', Endianness::Big), Err(bytes::to::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', Endianness::Little), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: Endianness, writer: impl Write) -> Result<(), Self::Error> {
@@ -186,7 +186,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// ```rust
             /// use bytes::{Endianness, TryToBytesDynamic as _};
             /// 
-            /// fn serialize<const LEN: usize>(value: char, endianness: &Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            /// fn serialize<const LEN: usize>(value: char, endianness: &Endianness) -> Result<[u8; LEN], bytes::to::Error> {
             ///     let mut buf: [u8; LEN] = [0; LEN];
             ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
             ///     Ok(buf)
@@ -195,8 +195,8 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(serialize::<4>('A', &Endianness::Big).unwrap(), [ 0x00, 0x00, 0x00, 0x41 ]);
             /// assert_eq!(serialize::<4>('A', &Endianness::Little).unwrap(), [ 0x41, 0x00, 0x00, 0x00 ]);
             /// 
-            /// assert!(matches!(serialize::<3>('A', &Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
-            /// assert!(matches!(serialize::<3>('A', &Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', &Endianness::Big), Err(bytes::to::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', &Endianness::Little), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &Endianness, writer: impl Write) -> Result<(), Self::Error> {
@@ -223,7 +223,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// ```rust
             /// use bytes::{Endianness, TryToBytesDynamic as _};
             /// 
-            /// fn serialize<const LEN: usize>(value: char, endianness: &mut Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            /// fn serialize<const LEN: usize>(value: char, endianness: &mut Endianness) -> Result<[u8; LEN], bytes::to::Error> {
             ///     let mut buf: [u8; LEN] = [0; LEN];
             ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
             ///     Ok(buf)
@@ -232,8 +232,8 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(serialize::<4>('A', &mut Endianness::Big).unwrap(), [ 0x00, 0x00, 0x00, 0x41 ]);
             /// assert_eq!(serialize::<4>('A', &mut Endianness::Little).unwrap(), [ 0x41, 0x00, 0x00, 0x00 ]);
             /// 
-            /// assert!(matches!(serialize::<3>('A', &mut Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
-            /// assert!(matches!(serialize::<3>('A', &mut Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', &mut Endianness::Big), Err(bytes::to::Error::Write { .. })));
+            /// assert!(matches!(serialize::<3>('A', &mut Endianness::Little), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &mut Endianness, writer: impl Write) -> Result<(), Self::Error> {
@@ -265,7 +265,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x00, 0x00, 0x00, 0x41 ]);
             /// 
             /// let mut buf: [u8; 3] = [0; 3];
-            /// assert!(matches!('A'.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!('A'.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: BigEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -298,7 +298,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x00, 0x00, 0x00, 0x41 ]);
             /// 
             /// let mut buf: [u8; 3] = [0; 3];
-            /// assert!(matches!('A'.try_to_bytes_dynamic(&BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &BigEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -330,7 +330,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x00, 0x00, 0x00, 0x41 ]);
             /// 
             /// let mut buf: [u8; 3] = [0; 3];
-            /// assert!(matches!('A'.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &mut BigEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -362,7 +362,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x41, 0x00, 0x00, 0x00 ]);
             /// 
             /// let mut buf: [u8; 3] = [0; 3];
-            /// assert!(matches!('A'.try_to_bytes_dynamic(LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!('A'.try_to_bytes_dynamic(LittleEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -395,7 +395,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x41, 0x00, 0x00, 0x00 ]);
             /// 
             /// let mut buf: [u8; 3] = [0; 3];
-            /// assert!(matches!('A'.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -427,7 +427,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x41, 0x00, 0x00, 0x00 ]);
             /// 
             /// let mut buf: [u8; 3] = [0; 3];
-            /// assert!(matches!('A'.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!('A'.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &mut LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -551,7 +551,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// ```rust
             /// use bytes::{Endianness, TryToBytesDynamic as _};
             /// 
-            /// fn serialize<const LEN: usize>(value: u16, endianness: Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            /// fn serialize<const LEN: usize>(value: u16, endianness: Endianness) -> Result<[u8; LEN], bytes::to::Error> {
             ///     let mut buf: [u8; LEN] = [0; LEN];
             ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
             ///     Ok(buf)
@@ -560,8 +560,8 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(serialize::<2>(42, Endianness::Big).unwrap(), [ 0x00, 0x2A ]);
             /// assert_eq!(serialize::<2>(42, Endianness::Little).unwrap(), [ 0x2A, 0x00 ]);
             /// 
-            /// assert!(matches!(serialize::<1>(42, Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
-            /// assert!(matches!(serialize::<1>(42, Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, Endianness::Big), Err(bytes::to::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, Endianness::Little), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: Endianness, writer: impl Write) -> Result<(), Self::Error> {
@@ -588,7 +588,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// ```rust
             /// use bytes::{Endianness, TryToBytesDynamic as _};
             /// 
-            /// fn serialize<const LEN: usize>(value: u16, endianness: &Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            /// fn serialize<const LEN: usize>(value: u16, endianness: &Endianness) -> Result<[u8; LEN], bytes::to::Error> {
             ///     let mut buf: [u8; LEN] = [0; LEN];
             ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
             ///     Ok(buf)
@@ -597,8 +597,8 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(serialize::<2>(42, &Endianness::Big).unwrap(), [ 0x00, 0x2A ]);
             /// assert_eq!(serialize::<2>(42, &Endianness::Little).unwrap(), [ 0x2A, 0x00 ]);
             /// 
-            /// assert!(matches!(serialize::<1>(42, &Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
-            /// assert!(matches!(serialize::<1>(42, &Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, &Endianness::Big), Err(bytes::to::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, &Endianness::Little), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &Endianness, writer: impl Write) -> Result<(), Self::Error> {
@@ -621,7 +621,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// ```rust
             /// use bytes::{Endianness, TryToBytesDynamic as _};
             /// 
-            /// fn serialize<const LEN: usize>(value: u16, endianness: &mut Endianness) -> Result<[u8; LEN], bytes::to_bytes::Error> {
+            /// fn serialize<const LEN: usize>(value: u16, endianness: &mut Endianness) -> Result<[u8; LEN], bytes::to::Error> {
             ///     let mut buf: [u8; LEN] = [0; LEN];
             ///     value.try_to_bytes_dynamic(endianness, &mut buf[..])?;
             ///     Ok(buf)
@@ -630,8 +630,8 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(serialize::<2>(42, &mut Endianness::Big).unwrap(), [ 0x00, 0x2A ]);
             /// assert_eq!(serialize::<2>(42, &mut Endianness::Little).unwrap(), [ 0x2A, 0x00 ]);
             /// 
-            /// assert!(matches!(serialize::<1>(42, &mut Endianness::Big), Err(bytes::to_bytes::Error::Write { .. })));
-            /// assert!(matches!(serialize::<1>(42, &mut Endianness::Little), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, &mut Endianness::Big), Err(bytes::to::Error::Write { .. })));
+            /// assert!(matches!(serialize::<1>(42, &mut Endianness::Little), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &mut Endianness, writer: impl Write) -> Result<(), Self::Error> {
@@ -659,7 +659,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x00, 0x2A ]);
             /// 
             /// let mut buf: [u8; 1] = [0; 1];
-            /// assert!(matches!(42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, _input: BigEndian, mut writer: impl Write) -> Result<(), Self::Error> {
@@ -691,7 +691,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x00, 0x2A ]);
             /// 
             /// let mut buf: [u8; 1] = [0; 1];
-            /// assert!(matches!(42u16.try_to_bytes_dynamic(&BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &BigEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -719,7 +719,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x00, 0x2A ]);
             /// 
             /// let mut buf: [u8; 1] = [0; 1];
-            /// assert!(matches!(42u16.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&mut BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &mut BigEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -747,7 +747,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x2A, 0x00 ]);
             /// 
             /// let mut buf: [u8; 1] = [0; 1];
-            /// assert!(matches!(42u16.try_to_bytes_dynamic(LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(LittleEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, _input: LittleEndian, mut writer: impl Write) -> Result<(), Self::Error> {
@@ -779,7 +779,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x2A, 0x00 ]);
             /// 
             /// let mut buf: [u8; 1] = [0; 1];
-            /// assert!(matches!(42u16.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&LittleEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -807,7 +807,7 @@ macro_rules! try_to_bytes_dynamic_primitive_impl {
             /// assert_eq!(buf, [ 0x2A, 0x00 ]);
             /// 
             /// let mut buf: [u8; 1] = [0; 1];
-            /// assert!(matches!(42u16.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(&mut LittleEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: &mut LittleEndian, writer: impl Write) -> Result<(), Self::Error> {
@@ -877,7 +877,7 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
             /// assert_eq!(buf, [0, 0, 0, 0]);
             /// 
             /// let mut buf: [u8; 3] = [0; 3];
-            /// assert!(matches!(().try_to_bytes_dynamic(4, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(().try_to_bytes_dynamic(4, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: usize, mut writer: impl Write) -> Result<(), Self::Error> {
@@ -917,7 +917,7 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
             /// assert_eq!(buf, [0x00, 0x2A]);
             /// 
             /// let mut buf: [u8; 1] = [0; 1];
-            /// assert!(matches!(42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+            /// assert!(matches!(42u16.try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
             /// ```
             #[inline]
             fn try_to_bytes_dynamic(&self, input: $fin, writer: impl Write) -> Result<(), Self::Error> {
@@ -1068,7 +1068,7 @@ pub enum Error {
     /// use bytes::TryToBytes as _;
     /// 
     /// let mut buf: [u8; 0] = [];
-    /// assert!(matches!(0u8.try_to_bytes(&mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!(0u8.try_to_bytes(&mut buf[..]), Err(bytes::to::Error::Write { .. })));
     /// ```
     Write { err: std::io::Error },
     /// A sub-serializer of a field failed.
@@ -1083,7 +1083,7 @@ pub enum Error {
     ///     field_1 : u32
     /// }
     /// 
-    /// assert!(matches!(Example { field_1: 42 }.try_to_bytes(&mut [][..]), Err(bytes::to_bytes::Error::Field{ .. })));
+    /// assert!(matches!(Example { field_1: 42 }.try_to_bytes(&mut [][..]), Err(bytes::to::Error::Field{ .. })));
     /// ```
     Field { name: String, err: Box<dyn error::Error> },
 }
@@ -1308,7 +1308,7 @@ where
     /// assert_eq!(buf, [ 0x00, 0x2A, 0x00, 0x2A ]);
     /// 
     /// let mut buf: [u8; 3] = [0; 3];
-    /// assert!(matches!([ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Field { .. })));
+    /// assert!(matches!([ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Field { .. })));
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
         // Simply serialize all of them in-order
@@ -1346,7 +1346,7 @@ where
     /// assert_eq!(buf, [ 0x00, 0x2A, 0x00, 0x2A ]);
     /// 
     /// let mut buf: [u8; 3] = [0; 3];
-    /// assert!(matches!(([ 42u16, 42u16 ][..]).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Field { .. })));
+    /// assert!(matches!(([ 42u16, 42u16 ][..]).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Field { .. })));
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
         // Simply serialize all of them in-order
@@ -1384,7 +1384,7 @@ where
     /// assert_eq!(buf, [ 0x00, 0x2A, 0x00, 0x2A ]);
     /// 
     /// let mut buf: [u8; 3] = [0; 3];
-    /// assert!(matches!(vec![ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Field { .. })));
+    /// assert!(matches!(vec![ 42u16, 42u16 ].try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Field { .. })));
     /// ```
     fn try_to_bytes_dynamic(&self, input: I, mut writer: impl Write) -> Result<(), Self::Error> {
         // Simply serialize all of them in-order
@@ -1419,7 +1419,7 @@ impl TryToBytesDynamic<NoInput> for str {
     /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
     /// 
     /// let mut buf: [u8; 12] = [0; 12];
-    /// assert!(matches!("Hello, world!".try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!("Hello, world!".try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
@@ -1451,7 +1451,7 @@ impl TryToBytesDynamic<NoInput> for Cow<'_, str> {
     /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
     /// 
     /// let mut buf: [u8; 12] = [0; 12];
-    /// assert!(matches!(Cow::Borrowed("Hello, world!").try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!(Cow::Borrowed("Hello, world!").try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
@@ -1482,7 +1482,7 @@ impl TryToBytesDynamic<NoInput> for String {
     /// assert_eq!(buf, [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x2C, 0x20, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x21]);
     /// 
     /// let mut buf: [u8; 12] = [0; 12];
-    /// assert!(matches!("Hello, world!".to_string().try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!("Hello, world!".to_string().try_to_bytes_dynamic(NoInput, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
@@ -1515,7 +1515,7 @@ impl<T: TryToBytesDynamic<I>, I> TryToBytesDynamic<I> for &T {
     /// assert_eq!(buf, [0x00, 0x2A]);
     /// 
     /// let mut buf: [u8; 1] = [0; 1];
-    /// assert!(matches!((&42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!((&42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error> {
@@ -1543,7 +1543,7 @@ impl<T: TryToBytesDynamic<I>, I> TryToBytesDynamic<I> for &mut T {
     /// assert_eq!(buf, [0x00, 0x2A]);
     /// 
     /// let mut buf: [u8; 1] = [0; 1];
-    /// assert!(matches!((&mut 42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to_bytes::Error::Write { .. })));
+    /// assert!(matches!((&mut 42u16).try_to_bytes_dynamic(BigEndian, &mut buf[..]), Err(bytes::to::Error::Write { .. })));
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, input: I, writer: impl Write) -> Result<(), Self::Error> {
