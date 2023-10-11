@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:05:57
 //  Last edited:
-//    09 Oct 2023, 19:28:59
+//    11 Oct 2023, 21:48:17
 //  Auto updated?
 //    Yes
 // 
@@ -128,10 +128,371 @@ pub use to_bytes::{TryToBytes, TryToBytesDynamic};
 
 
 // Pull any procedural macros into this namespace
-/// This module documents the use of the various procedural macros defined in the [`bytes_derive`]-crate.
+/// Documents procedural macros for deriving
+/// [`TryToBytes`](trait@crate::TryToBytes),
+/// [`TryToBytesDynamic`](trait@crate::TryToBytesDynamic),
+/// [`TryFromBytes`](trait@crate::TryFromBytes) and
+/// [`TryFromBytesDynamic`](trait@crate::TryFromBytesDynamic) implementations on structs.
+/// 
+/// This is mostly useful for defining certain static byte layouts and how to parse them. For
+/// example:
+/// ```rust
+/// use bytes::{BigEndian, TryToBytes, TryFromBytes};
+/// 
+/// #[derive(TryFromBytes, TryToBytes)]
+/// struct UdpHeader {
+///     /// The packet source port.
+///     #[bytes(input = BigEndian)]
+///     src_port : u16,
+///     /// The packet destination port.
+///     #[bytes(input = BigEndian)]
+///     dst_port : u16,
+///     /// The length of the packet, in bytes.
+///     #[bytes(input = BigEndian)]
+///     length   : u16,
+///     /// A checksum for the datagram.
+///     #[bytes(input = BigEndian)]
+///     checksum : u16,
+/// }
+/// ```
+/// 
+/// By default, it assumes that headers are tighly-packed series of bytes with special
+/// interpretation. As such, one can define a struct in terms of types that already implement
+/// [`TryFromBytesDynamic`](trait@crate::TryFromBytesDynamic) or
+/// [`TryToBytesDynamic`](trait@crate::TryToBytesDynamic).
+/// 
+/// 
+/// ## General usage
+/// Using all four macros is extremely similar, so we explain the usage of the
+/// [`TryFromBytesDynamic](derive@crate::TryFromBytesDynamic)-macro which can be generalised to
+/// the other macro's.
+/// 
+/// Using the [`TryFromBytesDynamic](derive@crate::TryFromBytesDynamic) macro is as simple as
+/// adding it the derivation rules of a struct:
+/// ```rust
+/// # use bytes::TryFromBytesDynamic;
+/// #[derive(TryFromBytesDynamic)]
+/// struct Test {
+///     
+/// }
+/// ```
+/// While this compiles, it uses a default input type of [`NoInput`](crate::no_input::NoInput).
+/// This input type is given as an additional parameter to
+/// [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic()) to be
+/// able to dynamically configure the parsing process. But since using this special type means that
+/// no input is needed, this is equivalent to [`TryFromBytes`](crate::procedural);
+/// and thus, we will explicitly add another input type by specifiying the `#[bytes(...)]`
+/// attribute on the toplevel struct:
+/// ```rust
+/// # use bytes::TryFromBytesDynamic;
+/// #[derive(TryFromBytesDynamic)]
+/// #[bytes(dynamic_ty = "usize")]
+/// struct Test {
+///     
+/// }
+/// ```
+/// 
+/// Then, we can add fields to our struct:
+/// ```rust
+/// # use bytes::TryFromBytesDynamic;
+/// #[derive(TryFromBytesDynamic)]
+/// #[bytes(dynamic_ty = "usize")]
+/// struct Test {
+///     /// Some initial number that is a byte
+///     num  : u8,
+///     /// A string value we parse next.
+///     text : String,
+/// }
+/// ```
+/// However, this will not cause the parser to parse the given numbers, because we haven't
+/// annotated them as being sourced in bytes. As such, if we were to call
+/// [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic()), the
+/// [`Default`]-implementations of the types are called instead.
+/// 
+/// To fix this, we annotate the fields with additional `#[bytes]`-attributes:
+/// ```ignore
+/// # use bytes::TryFromBytesDynamic;
+/// #[derive(TryFromBytesDynamic)]
+/// #[bytes(dynamic_ty = "usize")]
+/// struct Test {
+///     /// Some initial number that is a byte
+///     #[bytes]
+///     num  : u8,
+///     /// A string value we parse next.
+///     #[bytes]
+///     text : String,
+/// }
+/// ```
+/// However, this will also not compile! This is because we use the [`String`]-type, which is
+/// also implemented as a [`TryFromBytesDynamic`](trait@crate::TryFromBytesDynamic) and
+/// requires the number of bytes it should interpret as a string. Thus, we can give the
+/// `input = ...` attribute here. However, note that now we don't specify an input _type_,
+/// but an input _value_. And we can do so using any expression, including previously parsed
+/// fields!
+/// ```rust
+/// # use bytes::TryFromBytesDynamic;
+/// #[derive(TryFromBytesDynamic)]
+/// #[bytes(dynamic_ty = "usize")]
+/// struct Test {
+///     /// Some initial number that is a byte
+///     #[bytes]
+///     num  : u8,
+///     /// A string value we parse next.
+///     #[bytes(input = num as usize)]
+///     text : String,
+/// }
+/// ```
+/// This wil first parse a byte number, and then parse that many bytes as UTF-8 text.
+/// 
+/// However, note that we also require a usize input to our struct to parse. We can also use
+/// this, by using the `dynamic_input`-variable (default name):
+/// ```rust
+/// # use bytes::TryFromBytesDynamic;
+/// #[derive(TryFromBytesDynamic)]
+/// #[bytes(dynamic_ty = "usize")]
+/// struct Test {
+///     /// Some initial number that is a byte
+///     #[bytes]
+///     num  : u8,
+///     /// A string value we parse next.
+///     #[bytes(input = input)]
+///     text : String,
+/// }
+/// ```
+/// Now, this struct will parse a single-byte number followed by a dynamically-determined
+/// number of UTF-8 bytes!
+/// 
+/// 
+/// ## Attributes
+/// To customize the behaviour of the derivation process, a number of toplevel- and field-level
+/// attributes are defined as arguments to the `#[bytes(...)]`-attribute.
+/// 
+/// ### Global attributes
+/// - `#[bytes(from(...))]` or `#[bytes(parse(...))]` or `#[bytes(parser(...))]`: Specifies a
+///   "namespace" for other attributes that can be given. This can be read as: "Any attribute
+///   in the `from`-namespace is only read by the parser." This allows you to give attributes
+///   to only the parser, not the serializer.
+///   
+///   **Example**:
+///   ```rust
+///   # use bytes::{TryFromBytesDynamic, TryToBytesDynamic};
+///   #[derive(TryFromBytesDynamic, TryToBytesDynamic)]
+///   #[bytes(from(dynamic_ty = "usize"))]
+///   struct Example {
+///       // Now we can pass the `input` only when we're parsing, not when serializing!
+///       #[bytes(from(input = input))]
+///       text : String,
+///   }
+///   ```
+/// - `#[bytes(to(...))]` or `#[bytes(serialize(...))]` or `#[bytes(serializer(...))]`: Specifies a
+///   "namespace" for other attributes that can be given. This can be read as: "Any attribute
+///   in the `to`-namespace is only read by the serializer." This allows you to give attributes
+///   to only the serializer, not the parser.
+///   
+///   **Example**:
+///   ```rust
+///   # use bytes::{LittleEndian, TryFromBytes, TryToBytes};
+///   #[derive(TryFromBytes, TryToBytes)]
+///   struct Example {
+///       // We only define a particular endianness for serializing; otherwise, use the native one
+///       #[bytes(to(input = LittleEndian))]
+///       num : u32,
+///   }
+///   ```
+/// 
+/// ### Toplevel attributes
+/// - `#[bytes(dynamic_name = "<NAME>")]`: Changes the name of the dynamic input variable in
+///   the struct's parser (i.e., the name of the input-argument in
+///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic())).
+///   Default: `"input"`.
+///   
+///   **Example**:
+///   ```rust
+///   # use bytes::TryFromBytesDynamic;
+///   #[derive(TryFromBytesDynamic)]
+///   #[bytes(dynamic_ty = "usize", dynamic_name = "foo")]
+///   struct Example {
+///       // Now we can pass it as follows
+///       #[bytes(input = foo)]
+///       text : String,
+///   }
+///   ```
+/// - `#[bytes(dynamic_ty = "<TYPE>")]`: Defines the type of the input in
+///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic()). Note
+///   that using a type of [`NoInput`](crate::no_input::NoInput) automatically derives
+///   [`TryFromBytes`](trait@crate::TryFromBytes) because it is assumed that it means no input
+///   is required. Default: `"NoInput"`.
+/// 
+///   **Example**:
+///   ```rust
+///   # use bytes::TryFromBytesDynamic;
+///   #[derive(TryFromBytesDynamic)]
+///   #[bytes(dynamic_ty = "usize")]
+///   struct Example {
+///       // We can pass this to field parsers
+///       #[bytes(input = input)]
+///       text : String,
+///   }
+///   ```
+/// - `#[bytes(input_name = "<NAME>")]`: Changes the name of the variable that represents the
+///   raw input bytestring during parsing (i.e., the name of the bytes-argument in
+///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic())).
+///   Default: `"bytes"`.
+///   
+///   **Example**:
+///   ```rust
+///   # use bytes::TryFromBytesDynamic;
+///   #[derive(TryFromBytesDynamic)]
+///   #[bytes(input_name = "foo")]
+///   struct Example {
+///       /// Without the renaming, this would cause weird errors.
+///       #[bytes]
+///       reader : [ u8; 10 ],
+///   }
+///   ```
+/// - `#[bytes(generate_refs = <true|false>)]`: Determines whether to generate the "reference
+///   implementation", i.e., implementations for a reference of the input type. This is
+///   typically desired for compatability with the library array/vector parser/serializer, and
+///   should only be disabled if your input type does not implement [`Clone`] or there's a more
+///   efficient way than cloning it to process a reference to it.
+///   
+///   **Example**:
+///   ```rust
+///   # use std::io::Read;
+///   # use bytes::{NoInput, TryFromBytesDynamic};
+///   // Some non-clonable type
+///   struct Helper;
+///   impl TryFromBytesDynamic<NoInput> for Helper {
+///       type Error = std::convert::Infallible;
+///       
+///       #[inline]
+///       fn try_from_bytes_dynamic(_input: NoInput, _reader: impl Read) -> Result<Self, Self::Error> {
+///           Ok(Self)
+///       }
+///   }
+///   
+///   #[derive(TryFromBytesDynamic)]
+///   #[bytes(dynamic_ty = "Helper", generate_refs = false)]
+///   struct Example {
+///       // Without `generate_refs`, this would've errored
+///       #[bytes]
+///       helper : Helper,
+///   }
+///   // Instead, implement our own for good practise
+///   impl TryFromBytesDynamic<&Helper> for Example {
+///       type Error = bytes::from_bytes::Error;
+///       
+///       #[inline]
+///       fn try_from_bytes_dynamic(_input: &Helper, reader: impl Read) -> Result<Self, Self::Error> {
+///           // We can rely on the generated one using another method of getting the input there
+///           Self::try_from_bytes_dynamic(Helper, reader)
+///       }
+///   }
+///   ```
+/// 
+/// ### Field-level attributes
+/// - `#[bytes(enabled = <true|false>)`: Determines whether to parse/serialize this field.
+///   This can be used in case `#[bytes(...)` needs to be given, but you don't want to enable
+///   the parser/serializer; for example, you want to enable _only_ the parser/serializer but
+///   not the other one (see the global `from`- and `to`-fields).
+///   
+///   **Example:**
+///   ```rust
+///   # use bytes::TryFromBytesDynamic;
+///   #[derive(TryFromBytesDynamic)]
+///   struct Example {
+///       // We still don't parse this field!
+///       #[bytes(enabled = false)]
+///       not_parsed : std::path::PathBuf,
+///   }
+///   ```
+/// - `#[bytes(name = "<NAME>")]`: Changes the name of this field for use in `input`-
+///   expressions. Note that this doesn't change the field name.
+///   
+///   **Example:**
+///   ```rust
+///   # use bytes::TryFromBytesDynamic;
+///   #[derive(TryFromBytesDynamic)]
+///   struct Example {
+///       // The field's name is `foo`...
+///       #[bytes(name = "len")]
+///       foo : usize,
+///       // ...but we can refer to it as `len`!
+///       #[bytes(input = len)]
+///       bar : String,
+///   }
+///   ```
+/// - `#[bytes(as_ty = "<TYPE>")]`: Attempts to parse a field using another type's parser/
+///   serializer. For the parser, the result is converted into the target type using the `as`-type's
+///   `Into<Field>` implementation. For serialization, the field type is first converted into
+///   the target type using that type's `Into<Field>`-implementation and then serialized using
+///   its implementation.
+///   
+///   Note: this attribute conflicts with `try_as_ty`.
+///   
+///   **Example:**
+///   ```rust
+///   # use bytes::TryFromBytesDynamic;
+///   struct SomeType(u32);
+///   impl From<u32> for SomeType {
+///        fn from(value: u32) -> Self { Self(value) }
+///   }
+///   
+///   #[derive(TryFromBytesDynamic)]
+///   struct Example {
+///       // For if 
+///       #[bytes(as_ty = "u32")]
+///       length : SomeType,
+///   }
+///   ```
+/// - `#[bytes(try_as_ty = "<TYPE>")]`: Attempts to parse a field using another type's parser/
+///   serializer. For the parser, the result is converted into the target type using the `as`-type's
+///   `TryInto<Field>` implementation. For serialization, the field type is first converted into
+///   the target type using that type's `TryInto<Field>`-implementation and then serialized using
+///   its implementation.
+///   
+///   Note: this attribute conflicts with `as_ty`.
+///   
+///   **Example:**
+///   ```rust
+///   use std::convert::TryFrom;
+///   # use bytes::TryFromBytesDynamic;
+///   struct SomeType(u32);
+///   impl TryFrom<u32> for SomeType {
+///        type Error = std::convert::Infallible;
+///        fn try_from(value: u32) -> Result<Self, Self::Error> { Ok(Self(value)) }
+///   }
+///   
+///   #[derive(TryFromBytesDynamic)]
+///   struct Example {
+///       // For if 
+///       #[bytes(try_as_ty = "u32")]
+///       length : SomeType,
+///   }
+///   ```
+/// - `#[bytes(input = <EXPR>)]`: Defines that the field uses
+///   [`TryFromBytesDynamic`](trait@crate::TryFromBytesDynamic) instead of
+///   [`TryFromBytes`](trait@crate::TryFromBytes) to provide the internal parser, and then
+///   states the expression passed as the dynamic input. Note that this expression can include
+///   the dynamic input value of the main struct as well as any _previous_ fields in the struct
+///   declaration.
+///   
+///   **Example**:
+///   ```rust
+///   # use bytes::TryFromBytesDynamic;
+///   #[derive(TryFromBytesDynamic)]
+///   struct Example {
+///       /// We parse the length of the string first...
+///       #[bytes]
+///       len : usize,
+///       /// ...and then parse that many + 5 bytes as string
+///       #[bytes(input = len + 5)]
+///       txt : String,
+///   }
+///   ```
 #[cfg(feature = "derive")]
 pub mod procedural {
-    /// Defines a procedural macro for deriving [`TryFromBytes`](struct@crate::TryFromBytes)
+    /// Defines a procedural macro for deriving [`TryFromBytes`](trait@crate::TryFromBytes)
     /// implementations on structs.
     /// 
     /// This is mostly useful for defining certain static byte layouts and how to parse them. For
@@ -157,294 +518,15 @@ pub mod procedural {
     /// ```
     /// 
     /// Note that this trait is a shorthand for a
-    /// [`TryFromBytesDynamic<NoInput>`](struct@crate::TryFromBytesDynamic<NoInput>), which implies a dynamic
+    /// [`TryFromBytesDynamic<NoInput>`](trait@crate::TryFromBytesDynamic<NoInput>), which implies a dynamic
     /// struct without input. As such, the derivation procedure for the two is exactly the same,
     /// except that the toplevel has no `#[bytes(dynamic_name = ...)]` and `#[bytes(dynamic_ty = ...)]`
     /// fields (but the individual fields still do).
     /// 
     /// As such, we recommend you read the
-    /// [`TryFromBytesDynamic`](crate::procedural::TryFromBytesDynamic)-macro documentation instead.
+    /// [`TryFromBytesDynamic`](crate::procedural)-macro documentation instead.
     #[allow(non_snake_case)]
     pub mod TryFromBytes {}
-
-    /// Defines a procedural macro for deriving
-    /// [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) implementations on structs.
-    /// 
-    /// This is mostly useful for defining certain static byte layouts and how to parse them. For
-    /// example:
-    /// ```rust
-    /// use bytes::{BigEndian, TryFromBytesDynamic};
-    /// 
-    /// #[derive(TryFromBytesDynamic)]
-    /// struct UdpHeader {
-    ///     /// The packet source port.
-    ///     #[bytes(input = BigEndian)]
-    ///     src_port : u16,
-    ///     /// The packet destination port.
-    ///     #[bytes(input = BigEndian)]
-    ///     dst_port : u16,
-    ///     /// The length of the packet, in bytes.
-    ///     #[bytes(input = BigEndian)]
-    ///     length   : u16,
-    ///     /// A checksum for the datagram.
-    ///     #[bytes(input = BigEndian)]
-    ///     checksum : u16,
-    /// }
-    /// ```
-    /// 
-    /// By default, it assumes that headers are tighly-packed series of bytes with special
-    /// interpretation. As such, one can define a struct in terms of types that already implement
-    /// [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) (or
-    /// [`TryFromBytes`](struct@crate::TryFromBytes)).
-    /// 
-    /// 
-    /// ## General usage
-    /// Using the [`TryFromBytesDynamic](derive@crate::TryFromBytesDynamic) macro is as simple as
-    /// adding it the derivation rules of a struct:
-    /// ```rust
-    /// # use bytes::TryFromBytesDynamic;
-    /// #[derive(TryFromBytesDynamic)]
-    /// struct Test {
-    ///     
-    /// }
-    /// ```
-    /// While this compiles, it uses a default input type of [`()`](core::primitive::unit). This
-    /// input type is given as an additional parameter to
-    /// [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic()) to be
-    /// able to dynamically configure the parsing process. But since using the unit-type means that
-    /// no input is needed, this is equivalent to [`TryFromBytes`](crate::procedural::TryFromBytes);
-    /// and thus, we will explicitly add another input type by specifiying the `#[bytes(...)]`
-    /// attribute on the toplevel struct:
-    /// ```rust
-    /// # use bytes::TryFromBytesDynamic;
-    /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic_ty = "usize")]
-    /// struct Test {
-    ///     
-    /// }
-    /// ```
-    /// 
-    /// Then, we can add fields to our struct:
-    /// ```rust
-    /// # use bytes::TryFromBytesDynamic;
-    /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic_ty = "usize")]
-    /// struct Test {
-    ///     /// Some initial number that is a byte
-    ///     num  : u8,
-    ///     /// A string value we parse next.
-    ///     text : String,
-    /// }
-    /// ```
-    /// However, this will not cause the parser to parse the given numbers, because we haven't
-    /// annotated them as being sourced in bytes. As such, if we were to call
-    /// [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic()), the
-    /// [`Default`]-implementations of the types are called instead.
-    /// 
-    /// To fix this, we annotate the fields with additional `#[bytes]`-attributes:
-    /// ```ignore
-    /// # use bytes::TryFromBytesDynamic;
-    /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic_ty = "usize")]
-    /// struct Test {
-    ///     /// Some initial number that is a byte
-    ///     #[bytes]
-    ///     num  : u8,
-    ///     /// A string value we parse next.
-    ///     #[bytes]
-    ///     text : String,
-    /// }
-    /// ```
-    /// However, this will also not compile! This is because we use the [`String`]-type, which is
-    /// also implemented as a [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) and
-    /// requires the number of bytes it should interpret as a string. Thus, we can give the
-    /// `input = ...` attribute here. However, note that now we don't specify an input _type_,
-    /// but an input _value_. And we can do so using any expression, including previously parsed
-    /// fields!
-    /// ```rust
-    /// # use bytes::TryFromBytesDynamic;
-    /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic_ty = "usize")]
-    /// struct Test {
-    ///     /// Some initial number that is a byte
-    ///     #[bytes]
-    ///     num  : u8,
-    ///     /// A string value we parse next.
-    ///     #[bytes(input = num as usize)]
-    ///     text : String,
-    /// }
-    /// ```
-    /// This wil first parse a byte number, and then parse that many bytes as UTF-8 text.
-    /// 
-    /// However, note that we also require a usize input to our struct to parse. We can also use
-    /// this, by using the `dynamic_input`-variable (default name):
-    /// ```rust
-    /// # use bytes::TryFromBytesDynamic;
-    /// #[derive(TryFromBytesDynamic)]
-    /// #[bytes(dynamic_ty = "usize")]
-    /// struct Test {
-    ///     /// Some initial number that is a byte
-    ///     #[bytes]
-    ///     num  : u8,
-    ///     /// A string value we parse next.
-    ///     #[bytes(input = input)]
-    ///     text : String,
-    /// }
-    /// ```
-    /// Now, this struct will parse a single-byte number followed by a dynamically-determined
-    /// number of UTF-8 bytes!
-    /// 
-    /// 
-    /// ## Attributes
-    /// To customize the behaviour of the derivation process, a number of toplevel- and field-level
-    /// attributes are defined as arguments to the `#[bytes(...)]`-attribute.
-    /// 
-    /// ### Global attributes
-    /// - `#[bytes(from(...))]` or `#[bytes(parse(...))]` or `#[bytes(parser(...))]`: Specifies a
-    ///   "namespace" for other attributes that can be given. This can be read as: "Any attribute
-    ///   in the `from`-namespace is only read by the parser." This allows you to give attributes
-    ///   to only the parser, not the reader.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::{TryFromBytesDynamic, TryToBytesDynamic};
-    ///   #[derive(TryFromBytesDynamic, TryToBytesDynamic)]
-    ///   #[bytes(from(dynamic_ty = "usize"))]
-    ///   struct Example {
-    ///       // Now we can pass the `input` only when we're parsing, not when serializing!
-    ///       #[bytes(from(input = input))]
-    ///       text : String,
-    ///   }
-    ///   ```
-    /// 
-    /// ### Toplevel attributes
-    /// - `#[bytes(dynamic_name = "<NAME>")]`: Changes the name of the dynamic input variable in
-    ///   the struct's parser (i.e., the name of the input-argument in
-    ///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic())).
-    ///   Default: `"input"`.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   #[bytes(dynamic_ty = "usize", dynamic_name = "foo")]
-    ///   struct Example {
-    ///       // Now we can pass it as follows
-    ///       #[bytes(input = foo)]
-    ///       text : String,
-    ///   }
-    ///   ```
-    /// - `#[bytes(dynamic_ty = "<TYPE>")]`: Defines the type of the input in
-    ///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic()). Note
-    ///   that using a type of [`()`](core::primitive::unit) automatically derives
-    ///   [`TryFromBytes`](struct@crate::TryFromBytes) because it is assumed that it means no input
-    ///   is required. Default: `"()"`.
-    /// 
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   #[bytes(dynamic_ty = "usize")]
-    ///   struct Example {
-    ///       // We can pass this to field parsers
-    ///       #[bytes(input = input)]
-    ///       text : String,
-    ///   }
-    ///   ```
-    /// - `#[bytes(input_name = "<NAME>")]`: Changes the name of the variable that represents the
-    ///   raw input bytestring during parsing (i.e., the name of the bytes-argument in
-    ///   [`try_from_bytes_dynamic()`](crate::TryFromBytesDynamic::try_from_bytes_dynamic())).
-    ///   Default: `"bytes"`.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   #[bytes(input_name = "foo")]
-    ///   struct Example {
-    ///       /// Without the renaming, this would cause weird errors.
-    ///       #[bytes]
-    ///       reader : [ u8; 10 ],
-    ///   }
-    ///   ```
-    /// - `#[bytes(generate_refs = <true|false>)]`: Determines whether to generate the "reference
-    ///   implementation", i.e., implementations for a reference of the input type. This is
-    ///   typically desired for compatability with the library array/vector parser/serializer, and
-    ///   should only be disabled if your input type does not implement [`Clone`] or there's a more
-    ///   efficient way than cloning it to process a reference to it.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use std::io::Read;
-    ///   # use bytes::{NoInput, TryFromBytesDynamic};
-    ///   // Some non-clonable type
-    ///   struct Helper;
-    ///   impl TryFromBytesDynamic<NoInput> for Helper {
-    ///       type Error = std::convert::Infallible;
-    ///       
-    ///       #[inline]
-    ///       fn try_from_bytes_dynamic(_input: NoInput, _reader: impl Read) -> Result<Self, Self::Error> {
-    ///           Ok(Self)
-    ///       }
-    ///   }
-    ///   
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   #[bytes(dynamic_ty = "Helper", generate_refs = false)]
-    ///   struct Example {
-    ///       // Without `generate_refs`, this would've errored
-    ///       #[bytes]
-    ///       helper : Helper,
-    ///   }
-    ///   // Instead, implement our own for good practise
-    ///   impl TryFromBytesDynamic<&Helper> for Example {
-    ///       type Error = bytes::from_bytes::Error;
-    ///       
-    ///       #[inline]
-    ///       fn try_from_bytes_dynamic(_input: &Helper, reader: impl Read) -> Result<Self, Self::Error> {
-    ///           // We can rely on the generated one using another method of getting the input there
-    ///           Self::try_from_bytes_dynamic(Helper, reader)
-    ///       }
-    ///   }
-    ///   ```
-    /// 
-    /// ### Field-level attributes
-    /// - `#[bytes(enabled = <true|false>)`: Determines whether to parse/serialize this field.
-    ///   This can be used in case `#[bytes(...)` needs to be given, but you don't want to enable
-    ///   the parser/serializer; for example, you want to enable _only_ the parser/serializer but
-    ///   not the other one (see the global `from`- and `to`-fields).
-    ///   
-    ///   **Example:**
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   struct Example {
-    ///       // We still don't parse this field!
-    ///       #[bytes(enabled = false)]
-    ///       not_parsed : std::path::PathBuf,
-    ///   }
-    ///   ```
-    /// - `#[bytes(input = <EXPR>)]`: Defines that the field uses
-    ///   [`TryFromBytesDynamic`](struct@crate::TryFromBytesDynamic) instead of
-    ///   [`TryFromBytes`](struct@crate::TryFromBytes) to provide the internal parser, and then
-    ///   states the expression passed as the dynamic input. Note that this expression can include
-    ///   the dynamic input value of the main struct as well as any _previous_ fields in the struct
-    ///   declaration.
-    ///   
-    ///   **Example**:
-    ///   ```rust
-    ///   # use bytes::TryFromBytesDynamic;
-    ///   #[derive(TryFromBytesDynamic)]
-    ///   struct Example {
-    ///       /// We parse the length of the string first...
-    ///       #[bytes]
-    ///       len : usize,
-    ///       /// ...and then parse that many + 5 bytes as string
-    ///       #[bytes(input = len + 5)]
-    ///       txt : String,
-    ///   }
-    ///   ```
-    #[allow(non_snake_case)]
-    pub mod TryFromBytesDynamic {}
 }
 #[cfg(feature = "derive")]
 pub use bytes_derive::{TryFromBytes, TryFromBytesDynamic, TryToBytes, TryToBytesDynamic};

@@ -4,7 +4,7 @@
 //  Created:
 //    19 Sep 2023, 21:26:27
 //  Last edited:
-//    09 Oct 2023, 16:48:10
+//    11 Oct 2023, 21:46:34
 //  Auto updated?
 //    Yes
 // 
@@ -931,7 +931,7 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// A new instance of the inner type, wrapped in a tuple.
             /// 
             /// # Errors
-            /// This function errors whenever the child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+            /// This function errors whenever the child parser errors. It will be wrapped in a [`Error::Field`] in that case.
             /// 
             /// # Example
             /// ```rust
@@ -973,7 +973,7 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// A tuple with parsed instances of all the inner types.
             /// 
             /// # Errors
-            /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+            /// This function errors whenever any child parser errors. It will be wrapped in a [`Error::Field`] in that case.
             /// 
             /// # Example
             /// ```rust
@@ -1031,7 +1031,7 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
             /// A tuple with parsed instances of all the inner types.
             /// 
             /// # Errors
-            /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+            /// This function errors whenever any child parser errors. It will be wrapped in a [`Error::Field`] in that case.
             /// 
             /// # Example
             /// ```rust
@@ -1090,7 +1090,7 @@ macro_rules! try_from_bytes_dynamic_tuple_impl {
 /***** ERRORS *****/
 /// Defines errors that may occur when using library parsers.
 /// 
-/// Note that this struct is designed to report nested errors only when [`source()`](Error::source()) is called.
+/// Note that this struct is designed to report nested errors only when [`source()`](error::Error::source()()) is called.
 /// As such, consider using a library for reporting these easily (e.g., <https://github.com/Lut99/error-trace-rs>).
 #[derive(Debug)]
 pub enum Error {
@@ -1120,6 +1120,46 @@ pub enum Error {
     /// assert!(matches!(Example::try_from_bytes(&[][..]), Err(bytes::from_bytes::Error::Field{ .. })));
     /// ```
     Field { name: String, err: Box<dyn error::Error> },
+    /// Failed to convert some type to another type when calling using the derived attribute `try_as_ty`.
+    /// 
+    /// # Example
+    /// ```rust
+    /// use std::convert::TryInto;
+    /// use std::error::Error;
+    /// use std::fmt::{Display, Formatter, Result as FResult};
+    /// use bytes::{BigEndian, TryFromBytes};
+    /// 
+    /// // Let us whip up a quick example error
+    /// #[derive(Debug)]
+    /// struct SomeError(String);
+    /// impl Display for SomeError {
+    ///     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
+    ///         write!(f, "{}", self.0)
+    ///     }
+    /// }
+    /// impl Error for SomeError {}
+    /// 
+    /// // A quick type implementing `TryInto`
+    /// struct SomeType(u32);
+    /// impl TryInto<SomeType> for u32 {
+    ///     type Error = SomeError;
+    /// 
+    ///     fn try_into(self) -> Result<SomeType, Self::Error> {
+    ///         Err(SomeError("Oh no, that went wrong!".into()))
+    ///     }
+    /// }
+    /// 
+    /// // Our example struct!
+    /// #[derive(TryFromBytes)]
+    /// struct Example {
+    ///     #[bytes(try_as_ty = "u32", input = BigEndian)]
+    ///     something : SomeType,
+    /// }
+    /// 
+    /// // This fails ;(
+    /// assert!(matches!(Example::try_from_bytes(&[ 0x00, 0x00, 0x00, 0x2A ][..]), Err(bytes::from_bytes::Error::TryAsType { .. })));
+    /// ```
+    TryAsType { from: &'static str, to: &'static str, err: Box<dyn error::Error> },
 
     /// Given parsed byte was not a valid UTF-8 character.
     /// 
@@ -1144,8 +1184,9 @@ impl Display for Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> FResult {
         use Error::*;
         match self {
-            Read { .. }        => write!(f, "Failed to read from given reader"),
-            Field { name, .. } => write!(f, "Failed to parse field '{name}'"),
+            Read { .. }                => write!(f, "Failed to read from given reader"),
+            Field { name, .. }         => write!(f, "Failed to parse field '{name}'"),
+            TryAsType { from, to, .. } => write!(f, "Failed to convert from type '{from}' to '{to}'"),
 
             NonUtf8Char { raw }  => write!(f, "Byte '{raw:#010X}' is not a valid UTF-8 character"),
             NonUtf8String { .. } => write!(f, "Given bytes are not valid UTF-8"),
@@ -1156,8 +1197,9 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         use Error::*;
         match self {
-            Read { err }      => Some(err),
-            Field { err, .. } => Some(&**err),
+            Read { err }          => Some(err),
+            Field { err, .. }     => Some(&**err),
+            TryAsType { err, .. } => Some(&**err),
 
             NonUtf8Char { .. }    => None,
             NonUtf8String { err } => Some(err),
@@ -1175,7 +1217,7 @@ impl error::Error for Error {
 /// This can be thought of as a non-configurable counterpart to the [`TryFromBytesDynamic`].
 /// In fact, it is implemented as a more convenient alias for a dynamic implementation that takes `()` as input.
 /// 
-/// Typically, you can automatically derive this trait using the [`TryFromBytes`](crate::procedural::TryFromBytes)-macro.
+/// Typically, you can automatically derive this trait using the [`TryFromBytes`](crate::procedural)-macro.
 /// 
 /// # Example
 /// ```rust
@@ -1239,7 +1281,7 @@ impl<T: TryFromBytesDynamic<NoInput>> TryFromBytes for T {
 /// This can be thought of as a configurable counterpart to the [`TryFromBytes`].
 /// In fact, the [`TryFromBytes`] is an alias for `TryFromBytesDynamic<NoInput>`.
 /// 
-/// Typically, you can automatically derive this trait using the [`TryFromBytesDynamic`](crate::procedural::TryFromBytesDynamic)-macro.
+/// Typically, you can automatically derive this trait using the [`TryFromBytesDynamic`](crate::procedural)-macro.
 /// 
 /// # Example
 /// ```rust
@@ -1342,7 +1384,7 @@ where
     /// An array with parsed instances of the inner type.
     /// 
     /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+    /// This function errors whenever any child parser errors. It will be wrapped in a [`Error::Field`] in that case.
     /// 
     /// # Example
     /// ```rust
@@ -1381,7 +1423,7 @@ where
     /// A vector with parsed instances of the inner type.
     /// 
     /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+    /// This function errors whenever any child parser errors. It will be wrapped in a [`Error::Field`] in that case.
     /// 
     /// # Example
     /// ```rust
@@ -1420,7 +1462,7 @@ where
     /// A vector with parsed instances of the inner type.
     /// 
     /// # Errors
-    /// This function errors whenever any child parser errors. It will be wrapped in a [`ParseError::Field`] in that case.
+    /// This function errors whenever any child parser errors. It will be wrapped in a [`Error::Field`] in that case.
     /// 
     /// # Example
     /// ```rust

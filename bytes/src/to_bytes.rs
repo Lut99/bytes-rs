@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 11:30:12
 //  Last edited:
-//    09 Oct 2023, 16:49:21
+//    11 Oct 2023, 21:46:34
 //  Auto updated?
 //    Yes
 // 
@@ -906,7 +906,7 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
             /// - `writer`: The [`Write`]r to which we serialize the inner value.
             /// 
             /// # Errors
-            /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`SerializeError::Field`].
+            /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`Error::Field`].
             /// 
             /// # Example
             /// ```rust
@@ -949,7 +949,7 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
             /// - `writer`: The [`Write`]r to which the inner serializes write.
             /// 
             /// # Errors
-            /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
+            /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`Error::Field`].
             /// 
             /// # Example
             /// ```rust
@@ -1006,7 +1006,7 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
             /// - `writer`: The [`Write`]r to which the inner serializes write.
             /// 
             /// # Errors
-            /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`SerializeError::Field`].
+            /// This function may error if any of the inner serializers error. If so, then the error is wrapped in a [`Error::Field`].
             /// 
             /// # Example
             /// ```rust
@@ -1057,7 +1057,7 @@ macro_rules! try_to_bytes_dynamic_tuple_impl {
 /***** ERRORS *****/
 /// Defines errors that may occur when using library serializers.
 /// 
-/// Note that this struct is designed to report nested errors only when [`source()`](Error::source()) is called.
+/// Note that this struct is designed to report nested errors only when [`source()`](error::Error::source()()) is called.
 /// As such, consider using a library for reporting these easily (e.g., <https://github.com/Lut99/error-trace-rs>).
 #[derive(Debug)]
 pub enum Error {
@@ -1116,7 +1116,7 @@ impl error::Error for Error {
 /// This trait acts as an alias for [`TryToBytesDynamic`] in scenario's where no input is required (i.e., `()`).
 /// As such, it is automatically implemented for that cases.
 /// 
-/// This can be automatically derived using the [`TryToBytes`](crate::procedural::TryToBytes)-macro.
+/// This can be automatically derived using the [`TryToBytes`](crate::procedural)-macro.
 /// 
 /// # Example
 /// ```rust
@@ -1187,7 +1187,7 @@ impl<T: ?Sized + TryToBytesDynamic<NoInput>> TryToBytes for T {
 /***** LIBRARY *****/
 /// Allows a type to be serialized to bytes, using some additional input for configuration.
 /// 
-/// This can be automatically derived using the [`TryToBytesDynamic`](crate::procedural::TryToBytesDynamic)-macro.
+/// This can be automatically derived using the [`TryToBytesDynamic`](crate::procedural)-macro.
 /// 
 /// # Example
 /// ```rust
@@ -1297,7 +1297,7 @@ where
     /// - `writer`: The [`Write`]r to which the inner serializer writes.
     /// 
     /// # Errors
-    /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`SerializeError::Field`].
+    /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`Error::Field`].
     /// 
     /// # Example
     /// ```rust
@@ -1335,7 +1335,7 @@ where
     /// - `writer`: The [`Write`]r to which the inner serializer writes.
     /// 
     /// # Errors
-    /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`SerializeError::Field`].
+    /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`Error::Field`].
     /// 
     /// # Example
     /// ```rust
@@ -1373,7 +1373,7 @@ where
     /// - `writer`: The [`Write`]r to which the inner serializer writes.
     /// 
     /// # Errors
-    /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`SerializeError::Field`].
+    /// This function may error if the inner serializer errors. If so, then the error is wrapped in a [`Error::Field`].
     /// 
     /// # Example
     /// ```rust

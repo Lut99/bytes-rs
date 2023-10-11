@@ -4,7 +4,7 @@
 //  Created:
 //    09 Oct 2023, 16:21:43
 //  Last edited:
-//    09 Oct 2023, 16:39:53
+//    11 Oct 2023, 21:46:07
 //  Auto updated?
 //    Yes
 // 
@@ -15,7 +15,7 @@
 
 
 /***** LIBRARY *****/
-/// A special type that is used by the [`bytes`]-library to mark that a parser
+/// A special type that is used by the [`bytes`](crate)-library to mark that a parser
 /// or serializer does not use any input. As such,
 /// [`TryFromBytes`](crate::from_bytes::TryFromBytes) and/or
 /// [`TryToBytes`](crate::to_bytes::TryToBytes) may be derived.

@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:12:16
 //  Last edited:
-//    09 Oct 2023, 19:11:22
+//    11 Oct 2023, 21:04:03
 //  Auto updated?
 //    Yes
 // 
@@ -159,12 +159,12 @@ impl FieldParserInfo {
     /// 
     /// # Arguments
     /// - `name`: The identifier naming this field.
-    /// - `ty`: The type of the field. Given as a tuple of the type and a "real" source Span.
+    /// - `ty`: The type of the field.
     /// 
     /// # Returns
     /// A new instance of self that has the default values for a parser field.
     #[inline]
-    pub fn default(name: Ident, ty: (Type, Span)) -> Self {
+    pub fn default(name: Ident, ty: Type) -> Self {
         Self {
             common : FieldCommonInfo::default(name, ty),
         }
@@ -206,8 +206,10 @@ pub struct FieldCommonInfo {
     pub dyn_name  : Ident,
     /// The real type of this field.
     pub real_ty   : Type,
-    /// The type as which this field will be serialized/deserialized.
-    pub parse_ty  : (Type, Span),
+    /// The type as which this field will be serialized/deserialized if the user specified `as_ty`.
+    pub as_ty     : Option<(Type, Span)>,
+    /// The type as which this field will be serialized/deserialized if the user specified `try_as_ty`.
+    pub try_as_ty : Option<(Type, Span)>,
 
     /// Any dynamic input necessary.
     pub input : Expr,
@@ -217,12 +219,12 @@ impl FieldCommonInfo {
     /// 
     /// # Arguments
     /// - `name`: The identifier naming this field.
-    /// - `ty`: The type of the field. Given as a tuple of the type and a "real" source Span.
+    /// - `ty`: The type of the field.
     /// 
     /// # Returns
     /// A new instance of self that has the default values common to all fields.
     #[inline]
-    pub fn default(name: Ident, ty: (Type, Span)) -> Self {
+    pub fn default(name: Ident, ty: Type) -> Self {
         // Build the default path segments
         let mut segments: Punctuated<PathSegment, PathSep> = Punctuated::default();
         segments.push(PathSegment {
@@ -244,8 +246,9 @@ impl FieldCommonInfo {
 
             real_name : name.clone(),
             dyn_name  : name,
-            real_ty   : ty.0.clone(),
-            parse_ty  : ty,
+            real_ty   : ty,
+            as_ty     : None,
+            try_as_ty : None,
 
             input : Expr::Struct(ExprStruct {
                 attrs : vec![],

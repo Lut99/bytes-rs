@@ -4,7 +4,7 @@
 //  Created:
 //    02 Oct 2023, 19:52:06
 //  Last edited:
-//    09 Oct 2023, 19:18:08
+//    11 Oct 2023, 21:23:13
 //  Auto updated?
 //    Yes
 // 
@@ -38,7 +38,46 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
         let real_name: Ident = field.common.real_name;
         let dyn_name: Ident = field.common.dyn_name;
         let real_ty: Type = field.common.real_ty;
-        let parse_ty: Type = field.common.parse_ty.0;
+        let (parse_ty, parse_ty_into, parse_ty_default_into): (Type, TokenStream2, TokenStream2) = match (field.common.as_ty, field.common.try_as_ty) {
+            // `as_ty`-implementation
+            (Some((ty, _)), None) => (
+                ty.clone(),
+                quote!{ <#ty as ::std::convert::Into<#real_ty>>::into(val) },
+                quote!{ <#ty as ::std::convert::Into<#real_ty>>::into(<#ty as ::std::default::Default>::default()) },
+            ),
+
+            // `try_as_ty`-implementation
+            (None, Some((ty, _))) => (
+                ty.clone(),
+                quote!{
+                    <#ty as ::std::convert::TryInto<#real_ty>>::try_into(val)
+                        .map_err(|err| ::bytes::from_bytes::Error::TryAsType {
+                            from : ::std::any::type_name::<#ty>(),
+                            to   : ::std::any::type_name::<#real_ty>(),
+                            err  : ::std::boxed::Box::new(err) })?
+                },
+                quote!{
+                    ::std::option::Option::map_err(
+                        <#ty as ::std::convert::TryInto<#real_ty>>::try_into(<#ty as ::std::default::Default>::default()),
+                        |err| ::bytes::from_bytes::Error::TryAsType {
+                            from : ::std::any::type_name::<#ty>(),
+                            to   : ::std::any::type_name::<#real_ty>(),
+                            err  : ::std::boxed::Box::new(err)
+                        }
+                    )?
+                },
+            ),
+
+            // Direct implementation
+            (None, None) => (
+                real_ty.clone(),
+                quote!{ val },
+                quote!{ <#real_ty as ::std::default::Default>::default() },
+            ),
+
+            // Unreachable (due to conflicting arguments check in parse)
+            (Some(_), Some(_))    => { unreachable!(); },
+        };
 
         // Match on enabled or not
         if field.common.enabled {
@@ -69,15 +108,15 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
 
                     // Attempt to parse using the dynamic type
                     match <#parse_ty as ::bytes::from_bytes::TryFromBytesDynamic<_>>::try_from_bytes_dynamic(#input, &mut #input_name) {
-                        ::std::result::Result::Ok(val) => val.into(),
-                        ::std::result::Result::Err(err) => { return ::std::result::Result::Err(::bytes::from_bytes::Error::Field { name: #real_name_str.into(), err: ::std::boxed::Box::new(err) }); },
+                        ::std::result::Result::Ok(val) => #parse_ty_into,
+                        ::std::result::Result::Err(err) => { return ::std::result::Result::Err(::bytes::from_bytes::Error::Field { name: <&str as ::std::convert::Into<String>>::into(#real_name_str), err: ::std::boxed::Box::new(err) }); },
                     }
                 };
             });
         } else {
             // Generate a default impl instead
             parse_impls.push(quote! {
-                let #dyn_name: #real_ty = <#parse_ty as ::std::default::Default>::default().into();
+                let #dyn_name: #real_ty = #parse_ty_default_into;
             });
         }
 
@@ -118,7 +157,7 @@ pub fn generate_parser(generics: Generics, info: TryFromBytesDynamicInfo) -> Tok
                 #(#parse_impls)*
 
                 // OK, build self
-                Ok(Self {
+                ::std::result::Result::Ok(Self {
                     #(#self_impls)*
                 })
             }

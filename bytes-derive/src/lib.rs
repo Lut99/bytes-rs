@@ -4,7 +4,7 @@
 //  Created:
 //    30 Sep 2023, 14:10:57
 //  Last edited:
-//    02 Oct 2023, 20:43:14
+//    11 Oct 2023, 21:42:25
 //  Auto updated?
 //    Yes
 // 
@@ -19,7 +19,7 @@ mod spec;
 
 
 /***** LIBRARY *****/
-/// See the documentation at `bytes::procedural::TryFromBytes` for more information.
+/// See the documentation at `bytes::procedural` for more information.
 #[proc_macro_error::proc_macro_error]
 #[proc_macro_derive(TryFromBytes, attributes(bytes))]
 pub fn derive_try_from_bytes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -46,7 +46,7 @@ pub fn derive_try_from_bytes(input: proc_macro::TokenStream) -> proc_macro::Toke
     generate::generate_parser(generics, info).into()
 }
 
-/// See the documentation at `bytes::procedural::TryFromBytesDynamic` for more information.
+/// See the documentation at `bytes::procedural` for more information.
 #[proc_macro_error::proc_macro_error]
 #[proc_macro_derive(TryFromBytesDynamic, attributes(bytes))]
 pub fn derive_try_from_bytes_dynamic(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -75,7 +75,7 @@ pub fn derive_try_from_bytes_dynamic(input: proc_macro::TokenStream) -> proc_mac
 
 
 
-/// See the documentation at `bytes::procedural::TryFromBytes` for more information.
+/// See the documentation at `bytes::procedural` for more information.
 #[proc_macro_error::proc_macro_error]
 #[proc_macro_derive(TryToBytes, attributes(bytes))]
 pub fn derive_try_to_bytes(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -102,7 +102,7 @@ pub fn derive_try_to_bytes(input: proc_macro::TokenStream) -> proc_macro::TokenS
     generate::generate_serializer(generics, info).into()
 }
 
-/// See the documentation at `bytes::procedural::TryFromBytesDynamic` for more information.
+/// See the documentation at `bytes::procedural` for more information.
 #[proc_macro_error::proc_macro_error]
 #[proc_macro_derive(TryToBytesDynamic, attributes(bytes))]
 pub fn derive_try_to_bytes_dynamic(input: proc_macro::TokenStream) -> proc_macro::TokenStream {

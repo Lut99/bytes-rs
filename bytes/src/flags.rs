@@ -4,7 +4,7 @@
 //  Created:
 //    20 Sep 2023, 17:11:27
 //  Last edited:
-//    09 Oct 2023, 16:31:35
+//    11 Oct 2023, 21:45:52
 //  Auto updated?
 //    Yes
 // 
@@ -22,7 +22,7 @@ use crate::to_bytes::TryToBytesDynamic;
 
 
 /***** LIBRARY MACROS *****/
-/// A macro for generating ad-hoc [`Flag`]-like types.
+/// A macro for generating ad-hoc [`Flags`]-like types.
 /// 
 /// # Arguments
 /// This macro takes as input a list of field names to generate. These fields are in-order of the flags that we're parsing.
