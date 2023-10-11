@@ -4,7 +4,7 @@ This file keeps track of notable changes in between versions.
 This project uses [semantic versioning](https://semver.org). As such, we will mark which are breaking changes.
 
 
-## [2.0.0] - TODO
+## [2.0.0] - 2023-10-11
 ### Added
 - Proper docstring to `lib.rs` in `bytes` (i.e., the crate itself).
 - Ability to serialize to a stream of bytes too via the `TryToBytes`- and `TryToBytesDynamic`-traits.
@@ -17,6 +17,7 @@ This project uses [semantic versioning](https://semver.org). As such, we will ma
 - Simplified library implementations using macros.
 
 ### Fixed
+- `clippy` errors
 - Version number being incorrect in `Cargo.toml`
 
 
