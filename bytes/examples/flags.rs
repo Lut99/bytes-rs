@@ -48,21 +48,21 @@ fn main() {
     // Parse unnamed flags!
     let input: &[u8] = &[ 0b10100000 ];
     let flags: Flags<3> = Flags::try_from_bytes(input).unwrap();
-    assert_eq!(flags[0], true);
-    assert_eq!(flags[1], false);
-    assert_eq!(flags[2], true);
+    assert!(flags[0]);
+    assert!(!flags[1]);
+    assert!(flags[2]);
 
     // Parse named flags!
     let input: &[u8] = &[ 0b10100000 ];
     let flags: CoolFlags = CoolFlags::try_from_bytes(input).unwrap();
-    assert_eq!(flags.is_cool, true);
-    assert_eq!(flags.is_kind, false);
-    assert_eq!(flags.is_dope, true);
+    assert!(flags.is_cool);
+    assert!(!flags.is_kind);
+    assert!(flags.is_dope);
 
     // Parse sparse flags!
     let flags: SparseFlags = SparseFlags::try_from_bytes(input).unwrap();
-    assert_eq!(flags.prop1, true);
-    assert_eq!(flags.prop2, true);
+    assert!(flags.prop1);
+    assert!(flags.prop2);
 
     /* SERIALIZING */
     // Serialize unnamed flags!

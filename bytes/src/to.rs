@@ -1423,7 +1423,7 @@ impl TryToBytesDynamic<NoInput> for str {
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
-        match writer.write_all(&self.as_bytes()) {
+        match writer.write_all(self.as_bytes()) {
             Ok(_)    => Ok(()),
             Err(err) => Err(Error::Write { err }),
         }
@@ -1455,7 +1455,7 @@ impl TryToBytesDynamic<NoInput> for Cow<'_, str> {
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
-        match writer.write_all(&self.as_bytes()) {
+        match writer.write_all(self.as_bytes()) {
             Ok(_)    => Ok(()),
             Err(err) => Err(Error::Write { err }),
         }
@@ -1486,7 +1486,7 @@ impl TryToBytesDynamic<NoInput> for String {
     /// ```
     #[inline]
     fn try_to_bytes_dynamic(&self, _input: NoInput, mut writer: impl Write) -> Result<(), Self::Error> {
-        match writer.write_all(&self.as_bytes()) {
+        match writer.write_all(self.as_bytes()) {
             Ok(_)    => Ok(()),
             Err(err) => Err(Error::Write { err }),
         }
